@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +10,7 @@ import 'pages/collections_page.dart';
 import 'pages/history_page.dart';
 import 'pages/recipe_detail_page.dart';
 import 'providers/recipe_provider.dart';
+import 'providers/theme_provider.dart';
 import 'widgets/filter_bottom_sheet.dart';
 import 'widgets/recipe_card.dart';
 
@@ -15,8 +18,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env', isOptional: true);
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => RecipeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => RecipeProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
       child: const RecipeApp(),
     ),
   );
@@ -27,59 +33,145 @@ class RecipeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+
     return MaterialApp(
       title: 'Resep Masakan',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE8733A),
-          brightness: Brightness.light,
-          primary: const Color(0xFFE8733A),
-          secondary: const Color(0xFF2ECC71),
-          tertiary: const Color(0xFFE74C3C),
-        ),
-        textTheme: GoogleFonts.poppinsTextTheme(
-          Theme.of(context).textTheme,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF8F6F0),
-        appBarTheme: AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: const Color(0xFFF8F6F0),
-          foregroundColor: const Color(0xFF2C3E50),
-          titleTextStyle: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF2C3E50),
-          ),
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          elevation: 8,
-          backgroundColor: Colors.white,
-          indicatorColor: const Color(0xFFE8733A).withValues(alpha: 0.15),
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFFE8733A),
-              );
-            }
-            return GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.grey[600],
-            );
-          }),
-          iconTheme: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const IconThemeData(color: Color(0xFFE8733A));
-            }
-            return IconThemeData(color: Colors.grey[500]);
-          }),
+      themeMode: themeProvider.themeMode,
+      theme: _buildLightTheme(),
+      darkTheme: _buildDarkTheme(),
+      home: const HomeScreen(),
+    );
+  }
+
+  ThemeData _buildLightTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFFE8733A),
+      brightness: Brightness.light,
+      primary: const Color(0xFFE8733A),
+      secondary: const Color(0xFF2ECC71),
+      tertiary: const Color(0xFFE74C3C),
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      textTheme: GoogleFonts.poppinsTextTheme(),
+      scaffoldBackgroundColor: const Color(0xFFF8F6F0),
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: const Color(0xFFF8F6F0),
+        foregroundColor: const Color(0xFF2C3E50),
+        titleTextStyle: GoogleFonts.poppins(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFF2C3E50),
         ),
       ),
-      home: const HomeScreen(),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 8,
+        backgroundColor: Colors.white,
+        indicatorColor: colorScheme.primary.withValues(alpha: 0.15),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.primary,
+            );
+          }
+          return GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.grey[600],
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return IconThemeData(color: colorScheme.primary);
+          }
+          return IconThemeData(color: Colors.grey[500]);
+        }),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  ThemeData _buildDarkTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFFE8733A),
+      brightness: Brightness.dark,
+      primary: const Color(0xFFFF9A5C),
+      secondary: const Color(0xFF4ADE80),
+      tertiary: const Color(0xFFF87171),
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+      scaffoldBackgroundColor: const Color(0xFF121212),
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: const Color(0xFF121212),
+        foregroundColor: Colors.white,
+        titleTextStyle: GoogleFonts.poppins(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 8,
+        backgroundColor: const Color(0xFF1E1E1E),
+        indicatorColor: colorScheme.primary.withValues(alpha: 0.2),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.primary,
+            );
+          }
+          return GoogleFonts.poppins(
+            fontSize: 12,
+            color: Colors.grey[400],
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return IconThemeData(color: colorScheme.primary);
+          }
+          return IconThemeData(color: Colors.grey[500]);
+        }),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        backgroundColor: const Color(0xFF2C2C2C),
+      ),
     );
   }
 }
@@ -98,6 +190,10 @@ class _HomeScreenState extends State<HomeScreen>
   late final AnimationController _animationController;
   late final Animation<double> _fadeAnimation;
 
+  Timer? _debounceTimer;
+  Timer? _onboardingTimer;
+  bool _showOnboardingHint = true;
+
   final List<String> _filters = ['all', 'quick', 'simple'];
   final Map<String, String> _filterLabels = {
     'all': 'Semua',
@@ -108,6 +204,11 @@ class _HomeScreenState extends State<HomeScreen>
     'all': Icons.explore,
     'quick': Icons.timer,
     'simple': Icons.eco,
+  };
+  final Map<String, String> _filterTooltips = {
+    'all': 'Tampilkan semua resep',
+    'quick': 'Resep dengan waktu masak ≤ 20 menit',
+    'simple': 'Resep dengan ≤ 5 bahan',
   };
 
   @override
@@ -123,6 +224,13 @@ class _HomeScreenState extends State<HomeScreen>
     );
     _animationController.forward();
 
+    // Hide onboarding hint after 5 seconds
+    _onboardingTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() => _showOnboardingHint = false);
+      }
+    });
+
     // Load async data after build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<RecipeProvider>();
@@ -135,7 +243,27 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     _searchController.dispose();
     _animationController.dispose();
+    _debounceTimer?.cancel();
+    _onboardingTimer?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {});
+    _debounceTimer?.cancel();
+    final trimmed = value.trim();
+    final provider = context.read<RecipeProvider>();
+    if (trimmed.isEmpty) {
+      provider.searchRecipes('');
+      return;
+    }
+    _debounceTimer = Timer(const Duration(milliseconds: 600), () async {
+      if (!mounted) return;
+      await provider.searchRecipes(
+        trimmed,
+        filter: provider.activeFilter,
+      );
+    });
   }
 
   @override
@@ -162,20 +290,17 @@ class _HomeScreenState extends State<HomeScreen>
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           if (index >= 2) {
-            // Navigate to full pages
             switch (index) {
               case 2:
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => const HistoryPage()),
+                  MaterialPageRoute(builder: (_) => const HistoryPage()),
                 );
                 break;
               case 3:
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => const CollectionsPage()),
+                  MaterialPageRoute(builder: (_) => const CollectionsPage()),
                 );
                 break;
             }
@@ -215,25 +340,36 @@ class _HomeScreenState extends State<HomeScreen>
     ColorScheme colorScheme,
   ) {
     return SafeArea(
-      child: Column(
-        children: [
-          _buildHeader(context, provider, colorScheme),
-          _buildSearchSection(context, provider, colorScheme),
-          if (provider.isLoading)
-            _buildLoadingState(colorScheme)
-          else if (provider.errorMessage != null)
-            _buildNoResultsState(provider, colorScheme)
-          else if (_searchController.text.isEmpty &&
-              provider.searchResults.isEmpty)
-            _buildEmptyState(colorScheme, provider)
-          else
-            Expanded(child: _buildRecipeList(provider, context)),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            children: [
+              _buildHeader(context, provider, colorScheme, Theme.of(context).brightness),
+              Flexible(
+                flex: 0,
+                child: _buildSearchSection(context, provider, colorScheme),
+              ),
+              if (provider.isLoading)
+                _buildShimmerLoading()
+              else if (provider.errorMessage != null)
+                _buildErrorState(provider, colorScheme)
+              else if (_searchController.text.isEmpty &&
+                  provider.searchResults.isEmpty)
+                _buildEmptyState(colorScheme, provider)
+              else if (provider.searchResults.isEmpty &&
+                  _searchController.text.trim().isNotEmpty)
+                _buildNoResultsState(provider, colorScheme)
+              else if (provider.searchResults.isNotEmpty)
+                Expanded(child: _buildRecipeList(provider, context)),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context, RecipeProvider provider, ColorScheme colorScheme) {
+  Widget _buildHeader(BuildContext context, RecipeProvider provider, ColorScheme colorScheme, Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       decoration: BoxDecoration(
@@ -262,52 +398,167 @@ class _HomeScreenState extends State<HomeScreen>
                       style: GoogleFonts.poppins(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF2C3E50),
+                        color: colorScheme.onSurface,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Temukan inspirasi masakan lezat untuk hari ini',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w400,
+                Row(
+                  children: [
+                    Text(
+                      'Temukan inspirasi masakan lezat',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '🔍 cari & masak',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      'by M.Bagas & Asqilah Yasmin',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'XII RPL 2',
+                        style: GoogleFonts.poppins(
+                          fontSize: 9,
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (_showOnboardingHint)
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 500),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 20 * (1 - value)),
+                    child: child,
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.touch_app_rounded, size: 14, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Coba cari resep!',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (!_showOnboardingHint)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Dark mode toggle
+                GestureDetector(
+                  onTap: () => context.read<ThemeProvider>().toggleTheme(),
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: isDark ? 0.3 : 0.8),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                      size: 20,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.primary,
+                        colorScheme.primary.withValues(alpha: 0.7),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.primary.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    onPressed: () {
+                      _searchController.clear();
+                      provider.searchRecipes('');
+                    },
+                    icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+                    tooltip: 'Reset pencarian',
                   ),
                 ),
               ],
             ),
-          ),
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.primary,
-                  colorScheme.primary.withValues(alpha: 0.7),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.primary.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: () {
-                _searchController.clear();
-                provider.searchRecipes('');
-              },
-              icon: const Icon(Icons.refresh_rounded,
-                  color: Colors.white, size: 22),
-              tooltip: 'Reset',
-            ),
-          ),
         ],
       ),
     );
@@ -322,20 +573,23 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
+              color: colorScheme.shadow.withValues(alpha: colorScheme.brightness == Brightness.dark ? 0.3 : 0.06),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
           ],
         ),
-        child: Padding(
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
@@ -344,13 +598,19 @@ class _HomeScreenState extends State<HomeScreen>
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF2C3E50),
+                      color: colorScheme.onSurface,
                     ),
+                  ),
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message: 'Ketik nama resep atau bahan, lalu pilih filter untuk hasil yang lebih spesifik',
+                    child: Icon(Icons.info_outline_rounded, size: 16, color: colorScheme.outline),
                   ),
                   const Spacer(),
                   // Advanced filter button
                   GestureDetector(
                     onTap: () async {
+                      _debounceTimer?.cancel();
                       final result = await showModalBottomSheet<bool>(
                         context: context,
                         isScrollControlled: true,
@@ -378,7 +638,7 @@ class _HomeScreenState extends State<HomeScreen>
                         border: Border.all(
                           color: provider.hasActiveAdvancedFilters
                               ? colorScheme.primary.withValues(alpha: 0.3)
-                              : Colors.grey.withValues(alpha: 0.15),
+                              : colorScheme.outlineVariant,
                         ),
                       ),
                       child: Row(
@@ -389,7 +649,7 @@ class _HomeScreenState extends State<HomeScreen>
                             size: 16,
                             color: provider.hasActiveAdvancedFilters
                                 ? colorScheme.primary
-                                : Colors.grey[500],
+                                : colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -399,7 +659,7 @@ class _HomeScreenState extends State<HomeScreen>
                               fontWeight: FontWeight.w600,
                               color: provider.hasActiveAdvancedFilters
                                   ? colorScheme.primary
-                                  : Colors.grey[600],
+                                  : colorScheme.onSurfaceVariant,
                             ),
                           ),
                           if (provider.hasActiveAdvancedFilters) ...[
@@ -454,24 +714,24 @@ class _HomeScreenState extends State<HomeScreen>
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: const Color(0xFFF8F6F0),
+                    fillColor: colorScheme.surfaceContainerHighest,
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 14),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             onPressed: () {
+                              _debounceTimer?.cancel();
                               _searchController.clear();
                               provider.searchRecipes('');
                             },
                             icon: Icon(Icons.close_rounded,
-                                color: Colors.grey[500], size: 20),
+                                color: colorScheme.onSurfaceVariant, size: 20),
                           )
                         : null,
                   ),
-                  onChanged: (value) {
-                    setState(() {});
-                  },
+                  onChanged: _onSearchChanged,
                   onSubmitted: (value) async {
+                    _debounceTimer?.cancel();
                     if (value.trim().isNotEmpty) {
                       await provider.searchRecipes(
                         value,
@@ -488,11 +748,12 @@ class _HomeScreenState extends State<HomeScreen>
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
-                        await provider.searchRecipes(
-                          _searchController.text,
-                          filter: provider.activeFilter,
-                        );
-                      },
+                      _debounceTimer?.cancel();
+                      await provider.searchRecipes(
+                        _searchController.text,
+                        filter: provider.activeFilter,
+                      );
+                    },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: colorScheme.primary,
                         foregroundColor: Colors.white,
@@ -503,7 +764,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                       child: Text(
-                        'Cari Resep',
+                        '🔄 Cari Ulang',
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
@@ -560,7 +821,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                 ),
-              // Filter pills - minimal horizontal scroll
+              // Filter pills with tooltips
               SizedBox(
                 height: 34,
                 child: ListView.separated(
@@ -571,57 +832,61 @@ class _HomeScreenState extends State<HomeScreen>
                   itemBuilder: (context, index) {
                     final filter = _filters[index];
                     final isActive = provider.activeFilter == filter;
-                    return GestureDetector(
-                      onTap: () async {
-                        final query = _searchController.text.trim();
-                        if (query.isNotEmpty) {
-                          await provider.searchRecipes(
-                            query,
-                            filter: filter,
-                          );
-                        } else {
-                          provider.updateFilter(filter);
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? colorScheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
+                    return Tooltip(
+                      message: _filterTooltips[filter] ?? '',
+                      child: GestureDetector(
+                        onTap: () {
+                          _debounceTimer?.cancel();
+                          final query = _searchController.text.trim();
+                          if (query.isNotEmpty) {
+                            provider.searchRecipes(
+                              query,
+                              filter: filter,
+                            );
+                          } else {
+                            provider.updateFilter(filter);
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
                             color: isActive
                                 ? colorScheme.primary
-                                : Colors.grey.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _filterIcons[filter],
-                              size: 14,
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
                               color: isActive
-                                  ? Colors.white
-                                  : Colors.grey[500],
+                                  ? colorScheme.primary
+                                  : Colors.grey.withValues(alpha: 0.2),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _filterLabels[filter] ?? filter,
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight:
-                                    isActive ? FontWeight.w600 : FontWeight.w500,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _filterIcons[filter],
+                                size: 14,
                                 color: isActive
                                     ? Colors.white
-                                    : Colors.grey[600],
+                                    : colorScheme.onSurfaceVariant,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Text(
+                                _filterLabels[filter] ?? filter,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight:
+                                      isActive ? FontWeight.w600 : FontWeight.w500,
+                                  color: isActive
+                                      ? Colors.white
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -632,48 +897,194 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
+    ),
+  );
+  }
+
+  // ─── SHIMMER LOADING ──────────────────────────────────────────────────────
+  Widget _buildShimmerLoading() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Expanded(
+      child: ListView.builder(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: 4,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: Duration(milliseconds: 400 + (index * 100)),
+              curve: Curves.easeOut,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value.clamp(0.0, 1.0),
+                  child: Transform.translate(
+                    offset: Offset(0, 30 * (1 - value)),
+                    child: child,
+                  ),
+                );
+              },
+              child: Container(
+                height: 130,
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.shadow.withValues(alpha: colorScheme.brightness == Brightness.dark ? 0.3 : 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: const BorderRadius.horizontal(
+                          left: Radius.circular(20),
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(Icons.restaurant_rounded, size: 40, color: colorScheme.outlineVariant),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 180,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              width: 100,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  width: 50,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildLoadingState(ColorScheme colorScheme) {
+  // ─── ERROR STATE ──────────────────────────────────────────────────────────
+  Widget _buildErrorState(RecipeProvider provider, ColorScheme colorScheme) {
     return Expanded(
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 60,
-              height: 60,
-              child: CircularProgressIndicator(
-                strokeWidth: 4,
-                color: colorScheme.primary,
-                strokeCap: StrokeCap.round,
+        child: Padding(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: colorScheme.error.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.cloud_off_rounded, size: 48, color: colorScheme.error),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Mencari resep...',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
+              const SizedBox(height: 24),
+              Text(
+                'Gagal Memuat Data',
+                style: GoogleFonts.poppins(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sebentar ya, kami sedang mencari resep terbaik',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: Colors.grey[400],
+              const SizedBox(height: 12),
+              Text(
+                provider.errorMessage ?? 'Terjadi kesalahan saat mencari resep',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _debounceTimer?.cancel();
+                  final query = _searchController.text.trim();
+                  if (query.isNotEmpty) {
+                    provider.searchRecipes(query, filter: provider.activeFilter);
+                  }
+                },
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                label: Text(
+                  'Coba Lagi',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  // ─── NO RESULTS STATE ─────────────────────────────────────────────────────
   Widget _buildNoResultsState(RecipeProvider provider, ColorScheme colorScheme) {
+    final isDark = colorScheme.brightness == Brightness.dark;
     final suggestions = [
       ('Nasi Goreng', '🍚'),
       ('Ayam', '🍗'),
@@ -691,7 +1102,6 @@ class _HomeScreenState extends State<HomeScreen>
           child: Column(
             children: [
               const SizedBox(height: 8),
-              // Friendly illustration
               Container(
                 width: 120,
                 height: 120,
@@ -707,10 +1117,7 @@ class _HomeScreenState extends State<HomeScreen>
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: Text(
-                    '🔍',
-                    style: TextStyle(fontSize: 56),
-                  ),
+                  child: Text('🔍', style: TextStyle(fontSize: 56)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -719,25 +1126,23 @@ class _HomeScreenState extends State<HomeScreen>
                 style: GoogleFonts.poppins(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF2C3E50),
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 10),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
-                  provider.errorMessage ??
-                      'Coba gunakan kata kunci yang berbeda atau cek ejaan kamu ya',
+                  'Coba gunakan kata kunci yang berbeda atau cek ejaan kamu ya',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: Colors.grey[500],
+                    color: colorScheme.onSurfaceVariant,
                     height: 1.5,
                   ),
                 ),
               ),
               const SizedBox(height: 28),
-              // Try searching button
               ElevatedButton.icon(
                 onPressed: () {
                   _searchController.clear();
@@ -746,104 +1151,86 @@ class _HomeScreenState extends State<HomeScreen>
                 icon: const Icon(Icons.refresh_rounded, size: 20),
                 label: Text(
                   'Cari ulang',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: colorScheme.onPrimary,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 28, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
               const SizedBox(height: 36),
-              // Separator
               Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      color: Colors.grey.withValues(alpha: 0.15),
-                    ),
-                  ),
+                  Expanded(child: Container(height: 1, color: colorScheme.outlineVariant)),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       'Coba cari ini',
                       style: GoogleFonts.poppins(
                         fontSize: 13,
-                        color: Colors.grey[500],
+                        color: colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      color: Colors.grey.withValues(alpha: 0.15),
-                    ),
-                  ),
+                  Expanded(child: Container(height: 1, color: colorScheme.outlineVariant)),
                 ],
               ),
               const SizedBox(height: 20),
-              // Suggestion grid
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                alignment: WrapAlignment.center,
-                children: suggestions.map((s) {
-                  final name = s.$1;
-                  final emoji = s.$2;
-                  return GestureDetector(
-                    onTap: () {
-                      _searchController.text = name;
-                      provider.searchRecipes(
-                        name,
-                        filter: provider.activeFilter,
-                      );
-                      setState(() {});
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.grey.withValues(alpha: 0.12),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(emoji, style: const TextStyle(fontSize: 18)),
-                          const SizedBox(width: 8),
-                          Text(
-                            name,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF2C3E50),
+              Container(
+                padding: const EdgeInsets.all(4),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.center,
+                  children: suggestions.map((s) {
+                    final name = s.$1;
+                    final emoji = s.$2;
+                    return GestureDetector(
+                      onTap: () {
+                        _debounceTimer?.cancel();
+                        _searchController.text = name;
+                        provider.searchRecipes(name, filter: provider.activeFilter);
+                        setState(() {});
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: colorScheme.outlineVariant),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(emoji, style: const TextStyle(fontSize: 18)),
+                            const SizedBox(width: 8),
+                            Text(
+                              name,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+                ),
               ),
             ],
           ),
@@ -852,44 +1239,146 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ─── EMPTY STATE ──────────────────────────────────────────────────────────
   Widget _buildEmptyState(ColorScheme colorScheme, RecipeProvider provider) {
+    final quickTips = [
+      ('🍚', 'Nasi Goreng', 'Ketik "nasi goreng" untuk resep klasik'),
+      ('🍗', 'Ayam', 'Cari resep olahan ayam favorit'),
+      ('🥗', 'Sayur', 'Temukan resep sayur sehat'),
+    ];
+
     return Expanded(
-      child: Center(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         child: Padding(
           padding: const EdgeInsets.all(40),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('🔍', style: TextStyle(fontSize: 80)),
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.elasticOut,
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    child: child,
+                  );
+                },
+                child: Text('🔍', style: TextStyle(fontSize: 80)),
+              ),
               const SizedBox(height: 24),
               Text(
                 'Cari Resep Favoritmu',
                 style: GoogleFonts.poppins(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF2C3E50),
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 12),
               Text(
-                'Masukkan nama masakan atau bahan\\nyang kamu miliki',
+                'Masukkan nama masakan atau bahan\nyang kamu miliki',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
-                  color: Colors.grey[500],
+                  color: colorScheme.onSurfaceVariant,
                   height: 1.5,
                 ),
               ),
               const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildSuggestionChip('Nasi Goreng', colorScheme, provider),
-                  const SizedBox(width: 8),
-                  _buildSuggestionChip('Ayam', colorScheme, provider),
-                  const SizedBox(width: 8),
-                  _buildSuggestionChip('Mie', colorScheme, provider),
-                ],
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lightbulb_outline_rounded, size: 16, color: colorScheme.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Coba cari',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ...quickTips.map((tip) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          _debounceTimer?.cancel();
+                          _searchController.text = tip.$2;
+                          provider.searchRecipes(tip.$2, filter: provider.activeFilter);
+                          setState(() {});
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.04),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: colorScheme.primary.withValues(alpha: 0.1)),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(tip.$1, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tip.$2,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    Text(
+                                      tip.$3,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.arrow_forward_ios_rounded, size: 12, color: colorScheme.outline),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: Column(
+                  children: [
+                    _buildFeatureHint(Icons.timer_outlined, 'Filter Cepat', 'Temukan resep yang bisa dibuat dalam 20 menit', colorScheme),
+                    Divider(height: 20, color: colorScheme.outlineVariant),
+                    _buildFeatureHint(Icons.eco_rounded, 'Filter Sederhana', 'Resep dengan bahan minimal (≤5 bahan)', colorScheme),
+                    Divider(height: 20, color: colorScheme.outlineVariant),
+                    _buildFeatureHint(Icons.folder_rounded, 'Koleksi', 'Simpan resep ke dalam folder koleksi', colorScheme),
+                  ],
+                ),
               ),
             ],
           ),
@@ -898,37 +1387,49 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildSuggestionChip(String label, ColorScheme colorScheme, RecipeProvider provider) {
-    return GestureDetector(
-      onTap: () {
-        _searchController.text = label;
-        provider.searchRecipes(label, filter: provider.activeFilter);
-        setState(() {});
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: colorScheme.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.2),
+  Widget _buildFeatureHint(IconData icon, String title, String desc, ColorScheme colorScheme) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: colorScheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                desc,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: colorScheme.primary,
-          ),
-        ),
-      ),
+      ],
     );
   }
 
   Widget _buildRecipeList(RecipeProvider provider, BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (provider.searchResults.isEmpty) {
-      return _buildNoResultsState(provider, Theme.of(context).colorScheme);
+      return _buildNoResultsState(provider, colorScheme);
     }
 
     return Padding(
@@ -945,7 +1446,7 @@ class _HomeScreenState extends State<HomeScreen>
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF2C3E50),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -953,7 +1454,7 @@ class _HomeScreenState extends State<HomeScreen>
                   '${provider.searchResults.length} resep',
                   style: GoogleFonts.poppins(
                     fontSize: 13,
-                    color: Colors.grey[500],
+                    color: colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -962,8 +1463,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.only(
-                  left: 16, right: 16, top: 8, bottom: 16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               itemCount: provider.searchResults.length,
               itemBuilder: (context, index) {
                 final recipe = provider.searchResults[index];
@@ -997,14 +1497,17 @@ class _HomeScreenState extends State<HomeScreen>
                     );
                   },
                   onFavoriteToggle: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final title = recipe.title;
+                    final newFavState = !provider.isFavorite(recipe.id);
                     await provider.toggleFavorite(recipe);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(
-                            provider.isFavorite(recipe.id)
-                                ? '${recipe.title} ditambahkan ke favorit'
-                                : '${recipe.title} dihapus dari favorit',
+                            newFavState
+                                ? '$title ❤️ ditambahkan ke favorit'
+                                : '$title dihapus dari favorit',
                             style: GoogleFonts.poppins(fontSize: 13),
                           ),
                           behavior: SnackBarBehavior.floating,
@@ -1012,12 +1515,11 @@ class _HomeScreenState extends State<HomeScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                           duration: const Duration(milliseconds: 2000),
-                          backgroundColor: const Color(0xFF2C3E50),
+                          backgroundColor: colorScheme.onSurface,
                         ),
                       );
                     }
                   },
-                  index: index,
                 );
               },
             ),
@@ -1027,6 +1529,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ─── FAVORITES TAB ────────────────────────────────────────────────────────
   Widget _buildFavoritesTab(
     BuildContext context,
     RecipeProvider provider,
@@ -1043,7 +1546,7 @@ class _HomeScreenState extends State<HomeScreen>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFFE74C3C).withValues(alpha: 0.08),
+                  colorScheme.error.withValues(alpha: 0.08),
                   Colors.transparent,
                 ],
               ),
@@ -1060,14 +1563,14 @@ class _HomeScreenState extends State<HomeScreen>
                       style: GoogleFonts.poppins(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF2C3E50),
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     Text(
                       'Koleksi resep andalanmu',
                       style: GoogleFonts.poppins(
                         fontSize: 13,
-                        color: Colors.grey[600],
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1091,27 +1594,58 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('💝', style: TextStyle(fontSize: 100)),
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.elasticOut,
+              builder: (context, value, child) {
+                return Transform.scale(scale: value, child: child);
+              },
+              child: Text('💝', style: TextStyle(fontSize: 100)),
+            ),
             const SizedBox(height: 24),
             Text(
               'Belum Ada Favorit',
               style: GoogleFonts.poppins(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF2C3E50),
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'Temukan resep lezat dan simpan\\nsebagai favorit untuk diakses kapan saja',
+              'Temukan resep lezat dan simpan\nsebagai favorit untuk diakses kapan saja',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 14,
-                color: Colors.grey[500],
+                color: colorScheme.onSurfaceVariant,
                 height: 1.5,
               ),
             ),
             const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outlineVariant),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.touch_app_rounded, size: 16, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Klik ❤️ di resep untuk menyimpan',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
                 setState(() => _selectedIndex = 0);
@@ -1123,10 +1657,9 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: colorScheme.primary,
-                foregroundColor: Colors.white,
+                foregroundColor: colorScheme.onPrimary,
                 elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1139,6 +1672,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildFavoritesList(RecipeProvider provider, BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(
@@ -1153,7 +1687,7 @@ class _HomeScreenState extends State<HomeScreen>
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF2C3E50),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -1161,7 +1695,7 @@ class _HomeScreenState extends State<HomeScreen>
                   '${provider.favorites.length} resep',
                   style: GoogleFonts.poppins(
                     fontSize: 13,
-                    color: Colors.grey[500],
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1169,8 +1703,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.only(
-                  left: 16, right: 16, top: 8, bottom: 16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               itemCount: provider.favorites.length,
               itemBuilder: (context, index) {
                 final recipe = provider.favorites[index];
@@ -1203,12 +1736,14 @@ class _HomeScreenState extends State<HomeScreen>
                     );
                   },
                   onFavoriteToggle: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final title = recipe.title;
                     await provider.toggleFavorite(recipe);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(
-                            '${recipe.title} dihapus dari favorit',
+                            '$title dihapus dari favorit',
                             style: GoogleFonts.poppins(fontSize: 13),
                           ),
                           behavior: SnackBarBehavior.floating,
@@ -1216,16 +1751,14 @@ class _HomeScreenState extends State<HomeScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                           duration: const Duration(milliseconds: 2000),
-                          backgroundColor: const Color(0xFF2C3E50),
+                          backgroundColor: colorScheme.onSurface,
                         ),
                       );
                     }
                   },
                   onAddToCollection: provider.collections.isNotEmpty
-                      ? () => _showAddToCollectionSheet(
-                          context, provider, recipe)
+                      ? () => _showAddToCollectionSheet(context, provider, recipe)
                       : null,
-                  index: index,
                 );
               },
             ),
@@ -1237,6 +1770,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _showAddToCollectionSheet(
       BuildContext context, RecipeProvider provider, Recipe recipe) {
+    final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1245,10 +1779,9 @@ class _HomeScreenState extends State<HomeScreen>
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
             return Container(
-              decoration: const BoxDecoration(
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(24)),
-                color: Colors.white,
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                color: colorScheme.surface,
               ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -1261,7 +1794,7 @@ class _HomeScreenState extends State<HomeScreen>
                         width: 36,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.grey[300],
+                          color: colorScheme.outlineVariant,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -1273,15 +1806,11 @@ class _HomeScreenState extends State<HomeScreen>
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.1),
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(Icons.folder_rounded,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 22),
+                              color: Theme.of(context).colorScheme.primary, size: 22),
                         ),
                         const SizedBox(width: 12),
                         Text(
@@ -1289,7 +1818,7 @@ class _HomeScreenState extends State<HomeScreen>
                           style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF2C3E50),
+                            color: colorScheme.onSurface,
                           ),
                         ),
                       ],
@@ -1299,13 +1828,12 @@ class _HomeScreenState extends State<HomeScreen>
                       'Pilih koleksi untuk "${recipe.title}"',
                       style: GoogleFonts.poppins(
                         fontSize: 13,
-                        color: Colors.grey[500],
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 12),
                     ...provider.collections.map((collection) {
-                      final isInCollection = provider.isRecipeInCollection(
-                          collection.id!, recipe.id);
+                      final isInCollection = provider.isRecipeInCollection(collection.id!, recipe.id);
                       return ListTile(
                         leading: Icon(
                           isInCollection
@@ -1313,30 +1841,28 @@ class _HomeScreenState extends State<HomeScreen>
                               : Icons.circle_outlined,
                           color: isInCollection
                               ? Theme.of(context).colorScheme.primary
-                              : Colors.grey[400],
+                              : colorScheme.outline,
                         ),
                         title: Text(
                           collection.name,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: const Color(0xFF2C3E50),
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         subtitle: Text(
                           '${provider.getRecipeCountInCollection(collection.id!)} resep',
                           style: GoogleFonts.poppins(
                             fontSize: 12,
-                            color: Colors.grey[500],
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                         onTap: () async {
                           if (isInCollection) {
-                            await provider.removeRecipeFromCollection(
-                                collection.id!, recipe.id);
+                            await provider.removeRecipeFromCollection(collection.id!, recipe.id);
                           } else {
-                            await provider.addRecipeToCollection(
-                                collection.id!, recipe.id);
+                            await provider.addRecipeToCollection(collection.id!, recipe.id);
                           }
                           setSheetState(() {});
                         },
@@ -1350,7 +1876,7 @@ class _HomeScreenState extends State<HomeScreen>
                             'Belum ada koleksi. Buat koleksi dulu ya!',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: Colors.grey[500],
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -1366,17 +1892,12 @@ class _HomeScreenState extends State<HomeScreen>
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: Text(
                           'Buat Koleksi Baru',
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w500, fontSize: 13),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w500, fontSize: 13),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor:
-                              Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.primary,
                           side: BorderSide(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.3),
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(

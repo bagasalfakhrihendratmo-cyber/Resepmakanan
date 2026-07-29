@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/ingredient.dart';
 import '../models/recipe.dart';
 import '../providers/recipe_provider.dart';
+import '../services/recipe_service.dart';
 import '../widgets/nutrition_card.dart';
 import '../widgets/rating_widget.dart';
 
@@ -28,14 +29,38 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   bool _nutritionLoaded = false;
   int _userRating = 0;
   bool _ratingLoaded = false;
+  final RecipeService _recipeService = RecipeService();
+  Recipe? _fullRecipe;
+
+  /// Get the best available recipe data (full detail > original)
+  Recipe get _recipe => _fullRecipe ?? widget.recipe;
 
   @override
   void initState() {
     super.initState();
     _servings = widget.recipe.servings ?? 2;
-    _recordHistory();
-    _loadNutrition();
-    _loadRating();
+    // Defer async calls to avoid setState() during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _recordHistory();
+      _loadFullRecipe();
+      _loadNutrition();
+      _loadRating();
+    });
+  }
+
+  /// Load full recipe detail from API (includes ingredients & instructions)
+  Future<void> _loadFullRecipe() async {
+    try {
+      final detail = await _recipeService.getRecipeDetail(widget.recipe.id);
+      if (mounted && detail != null) {
+        setState(() {
+          _fullRecipe = detail;
+          _servings = detail.servings ?? widget.recipe.servings ?? 2;
+        });
+      }
+    } catch (_) {
+      // Fallback ke data asli jika API gagal
+    }
   }
 
   Future<void> _recordHistory() async {
@@ -49,7 +74,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final provider = context.read<RecipeProvider>();
     if (provider.nutritionInfo == null && !_nutritionLoaded) {
       setState(() => _nutritionsLoading = true);
-      await provider.loadNutritionInfo(widget.recipe.id);
+      await provider.loadNutritionInfo(_recipe.id);
       setState(() {
         _nutritionsLoading = false;
         _nutritionLoaded = true;
@@ -59,7 +84,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   Future<void> _loadRating() async {
     final provider = context.read<RecipeProvider>();
-    final rating = await provider.getUserRating(widget.recipe.id);
+    final rating = await provider.getUserRating(_recipe.id);
     if (mounted) {
       setState(() {
         _userRating = rating ?? 0;
@@ -71,7 +96,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<RecipeProvider>();
-    final isFavorite = provider.isFavorite(widget.recipe.id);
+    final recipe = _recipe;
+    final isFavorite = provider.isFavorite(recipe.id);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -99,7 +125,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             ),
             child: IconButton(
               onPressed: () async {
-                await provider.toggleFavorite(widget.recipe);
+                await provider.toggleFavorite(recipe);
               },
               icon: Icon(
                 isFavorite
@@ -138,7 +164,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   else if (provider.nutritionInfo != null) ...[
                     NutritionCard(
                       nutrition: provider.nutritionInfo!.scale(
-                        _servings / (widget.recipe.servings ?? 1),
+                        _servings / (recipe.servings ?? 1),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -150,7 +176,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       currentRating: _userRating,
                       onRatingChanged: (rating) async {
                         await provider.saveUserRating(
-                            widget.recipe.id, rating);
+                            recipe.id, rating);
                         setState(() => _userRating = rating);
                       },
                     ),
@@ -177,18 +203,19 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildPortionCalculator(ColorScheme colorScheme) {
-    final baseServings = widget.recipe.servings ?? 1;
+    final recipe = _recipe;
+    final baseServings = recipe.servings ?? 1;
     final factor = _servings / baseServings;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.12)),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: colorScheme.shadow.withValues(alpha: colorScheme.brightness == Brightness.dark ? 0.2 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -215,7 +242,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF2C3E50),
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
@@ -244,7 +271,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     Icons.remove_rounded,
                     color: _servings > 1
                         ? colorScheme.primary
-                        : Colors.grey[300],
+                        : colorScheme.outlineVariant,
                     size: 24,
                   ),
                 ),
@@ -329,13 +356,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     );
   }
 
-  Widget _buildNutritionLoading(ColorScheme colorScheme) {
-    return Container(
+  Widget _buildNutritionLoading(ColorScheme colorScheme) {    return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.12)),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -363,85 +389,102 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   // ─── REUSED FROM ORIGINAL RecipeDetailScreen ─────────────────────────────
 
   Widget _buildHeroImage(BuildContext context, ColorScheme colorScheme) {
-    return SizedBox(
-      height: 320,
-      width: double.infinity,
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(30),
-              bottomRight: Radius.circular(30),
-            ),
-            child: Image.network(
-              widget.recipe.image,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: 320,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: colorScheme.primary.withValues(alpha: 0.1),
-                child: Center(
-                  child: Icon(Icons.image_not_supported_rounded,
-                      size: 64, color: colorScheme.primary.withValues(alpha: 0.3)),
-                ),
+    final recipe = _recipe;
+    return Hero(
+      tag: 'recipe_${recipe.id}',
+      child: SizedBox(
+        height: 320,
+        width: double.infinity,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(30),
+                bottomRight: Radius.circular(30),
               ),
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  color: colorScheme.primary.withValues(alpha: 0.05),
+              child: Image.network(
+                recipe.image,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 320,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: colorScheme.primary.withValues(alpha: 0.05),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: colorScheme.primary,
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
                   child: Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      color: colorScheme.primary,
-                      strokeWidth: 3,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('🍽️', style: TextStyle(fontSize: 64)),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Gambar tidak tersedia',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: colorScheme.primary.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: 120,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.4),
-                  ],
                 ),
               ),
             ),
-          ),
-          Positioned(
-            bottom: 16,
-            left: 20,
-            right: 20,
-            child: Row(
-              children: [
-                _buildImageBadge(
-                  Icons.timer_outlined,
-                  '${widget.recipe.readyInMinutes ?? '--'} menit',
-                  Colors.white,
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.4),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 10),
-                _buildImageBadge(
-                  Icons.people_outline_rounded,
-                  '${widget.recipe.servings ?? '--'} porsi',
-                  Colors.white,
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            Positioned(
+              bottom: 16,
+              left: 20,
+              right: 20,
+              child: Row(
+                children: [
+                  _buildImageBadge(
+                    Icons.timer_outlined,
+                    '${recipe.readyInMinutes ?? '--'} menit',
+                    Colors.white,
+                  ),
+                  const SizedBox(width: 10),
+                  _buildImageBadge(
+                    Icons.people_outline_rounded,
+                    '${recipe.servings ?? '--'} porsi',
+                    Colors.white,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -473,15 +516,15 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Widget _buildTitleSection(BuildContext context, ColorScheme colorScheme) {
+    final recipe = _recipe;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          widget.recipe.title,
+          recipe.title,
           style: GoogleFonts.poppins(
             fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF2C3E50),
+            fontWeight: FontWeight.w800,                      color: colorScheme.onSurface,
             height: 1.3,
           ),
         ),
@@ -501,7 +544,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       size: 16, color: colorScheme.primary),
                   const SizedBox(width: 6),
                   Text(
-                    '${widget.recipe.readyInMinutes ?? '--'} menit',
+                    '${recipe.readyInMinutes ?? '--'} menit',
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -525,7 +568,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       size: 16, color: colorScheme.secondary),
                   const SizedBox(width: 6),
                   Text(
-                    '${widget.recipe.servings ?? '--'} porsi',
+                    '${recipe.servings ?? '--'} porsi',
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -539,9 +582,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         ),
       ],
     );
-  }
-
-  Widget _buildSectionHeader(String title, BuildContext context) {
+  }  Widget _buildSectionHeader(String title, BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Text(
@@ -549,7 +591,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF2C3E50),
+            color: colorScheme.onSurface,
           ),
         ),
       ],
@@ -558,10 +600,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   Widget _buildIngredientsList(
       BuildContext context, ColorScheme colorScheme) {
-    final factor = _servings / (widget.recipe.servings ?? 1);
+    final recipe = _recipe;
+    final factor = _servings / (recipe.servings ?? 1);
 
     return Column(
-      children: widget.recipe.ingredients.asMap().entries.map((entry) {
+      children: recipe.ingredients.asMap().entries.map((entry) {
         final ingredient = entry.value;
 
         // Parse and scale the ingredient
@@ -604,7 +647,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                   displayText,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: const Color(0xFF2C3E50),
+                    color: colorScheme.onSurface,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -627,8 +670,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   Widget _buildInstructionsList(
       BuildContext context, ColorScheme colorScheme) {
+    final recipe = _recipe;
     return Column(
-      children: widget.recipe.instructions.asMap().entries.map((entry) {
+      children: recipe.instructions.asMap().entries.map((entry) {
         final index = entry.key;
         final instruction = entry.value;
         final stepMatch = RegExp(r'^(\d+)\.\s*(.*)').firstMatch(instruction);
@@ -675,10 +719,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: Colors.grey.withValues(alpha: 0.12),
+                      color: colorScheme.outlineVariant,
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -692,7 +736,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     stepText,
                     style: GoogleFonts.poppins(
                       fontSize: 14,
-                      color: const Color(0xFF555555),
+                      color: colorScheme.onSurfaceVariant,
                       height: 1.5,
                     ),
                   ),

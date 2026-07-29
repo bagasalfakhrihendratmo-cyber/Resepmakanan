@@ -87,18 +87,17 @@ class RecipeProvider extends ChangeNotifier {
       final recipes = await _recipeService.searchRecipes(
         query,
         filter: filter,
-        cuisine: _cuisineFilter,
+        cuisine: 'Indonesian',
         diet: _dietFilter,
         intolerance: _intoleranceFilter,
         maxReadyTime: _maxReadyTime,
       );
       _searchResults = recipes;
-      if (recipes.isEmpty) {
-        _errorMessage = 'Tidak ada resep yang ditemukan untuk pencarian ini.';
-      }
+      // Hanya set errorMessage untuk error API sungguhan (catch block),
+      // bukan untuk hasil kosong - UI akan deteksi dari searchResults.isEmpty
     } catch (_) {
       _searchResults = [];
-      _errorMessage = 'Tidak dapat memuat resep. Coba lagi nanti.';
+      _errorMessage = 'Gagal terhubung ke server. Menggunakan data lokal...';
     } finally {
       _isLoading = false;
       notifyListeners();

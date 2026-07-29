@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -8,6 +9,64 @@ import '../models/recipe.dart';
 
 class RecipeService {
   static const String _baseUrl = 'https://api.spoonacular.com/recipes';
+
+  /// List of food photos from Unsplash (has CORS headers ✅).
+  /// Used as fallback for Spoonacular images which are blocked by
+  /// Flutter Web CanvasKit (img.spoonacular.com doesn't set CORS headers).
+  static const List<String> _unsplashImages = [
+    'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1603366445781-2fedc492e0a4?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1603895544018-0e8f6af6c5dc?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1626804475359-6a4c2e8c3a6a?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1603899122634-f086ca5f5ddd?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1586999768265-24af89630739?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1553621046-fd5f4c64e2ba?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1603048588665-791ca8aea617?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80',
+  ];
+
+  /// Spoonacular CDN images are blocked in Flutter Web CanvasKit (no CORS).
+  /// Fall back to an Unsplash food photo (has CORS headers ✅) based on recipe ID.
+  String _unsplashFallback(int recipeId) {
+    return _unsplashImages[recipeId % _unsplashImages.length];
+  }
+
+  /// Re-create a Recipe with an Unsplash fallback image if it's from Spoonacular CDN.
+  Recipe _recipeWithSafeImage(Recipe recipe) {
+    if (recipe.image.contains('img.spoonacular.com')) {
+      return Recipe(
+        id: recipe.id,
+        title: recipe.title,
+        image: _unsplashFallback(recipe.id),
+        readyInMinutes: recipe.readyInMinutes,
+        servings: recipe.servings,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        ingredientData: recipe.ingredientData,
+      );
+    }
+    return recipe;
+  }
 
   Future<List<Recipe>> searchRecipes(
     String query, {
@@ -33,6 +92,8 @@ class RecipeService {
       'query': normalizedQuery,
       'number': '10',
       'addRecipeInformation': 'true',
+      'fillIngredients': 'true',
+      'instructionsRequired': 'true',
     };
 
     if (cuisine != null && cuisine.isNotEmpty && cuisine != 'any') {
@@ -55,10 +116,26 @@ class RecipeService {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
         final results = decoded['results'] as List<dynamic>? ?? <dynamic>[];
-        final recipes = results
-            .map((item) => Recipe.fromJson(item as Map<String, dynamic>))
-            .toList();
-        return _applyFilter(recipes, filter);
+        // Debug: cek apakah API mengembalikan gambar
+        if (results.isNotEmpty) {
+          final firstResult = results[0] as Map<String, dynamic>;
+          debugPrint('🔍 API sukses! ${results.length} hasil');
+          debugPrint('📸 Contoh image URL: ${firstResult['image']}');
+          debugPrint('📝 Contoh judul: ${firstResult['title']}');
+        } else {
+          debugPrint('⚠️ API balikin 0 hasil untuk query: $normalizedQuery');
+        }
+        if (results.isNotEmpty) {
+          final recipes = results
+              .map((item) => _recipeWithSafeImage(
+                  Recipe.fromJson(item as Map<String, dynamic>)))
+              .toList();
+          debugPrint('✅ API sukses! ${recipes.length} hasil');
+          return _applyFilter(recipes, filter);
+        }
+        debugPrint('⚠️ API 0 hasil, fallback ke data demo Indonesia');
+      } else {
+        debugPrint('❌ API error: status ${response.statusCode} - ${response.body}');
       }
     } catch (_) {
       // Fallback to demo data when the API cannot be reached.
@@ -120,8 +197,10 @@ class RecipeService {
     try {
       final response = await http.get(uri);
       if (response.statusCode == 200) {
-        return Recipe.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>,
+        return _recipeWithSafeImage(
+          Recipe.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>,
+          ),
         );
       }
     } catch (_) {
@@ -143,11 +222,13 @@ class RecipeService {
   }
 
   List<Recipe> _searchDemoRecipes(String normalizedQuery, String filter) {
+    final query = normalizedQuery.toLowerCase();
     final recipes = _demoRecipes()
         .where(
-          (recipe) => recipe.title.toLowerCase().contains(
-            normalizedQuery.toLowerCase(),
-          ),
+          (recipe) =>
+              recipe.title.toLowerCase().contains(query) ||
+              recipe.ingredients
+                  .any((ing) => ing.toLowerCase().contains(query)),
         )
         .toList();
     return _applyFilter(recipes, filter);
@@ -223,7 +304,7 @@ class RecipeService {
         id: 5,
         title: 'Nasi Goreng Jawa',
         image:
-            'https://images.unsplash.com/photo-1603366445781-2fedc492e0a4?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=800&q=80',
         readyInMinutes: 35,
         servings: 3,
         ingredients: [
@@ -255,7 +336,7 @@ class RecipeService {
         id: 6,
         title: 'Nasi Goreng Merah',
         image:
-            'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=800&q=80',
         readyInMinutes: 25,
         servings: 2,
         ingredients: [
@@ -418,7 +499,7 @@ class RecipeService {
         id: 10,
         title: 'Ayam Suwir Pedas',
         image:
-            'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=800&q=80',
         readyInMinutes: 35,
         servings: 3,
         ingredients: [
@@ -620,7 +701,7 @@ class RecipeService {
         id: 16,
         title: 'Sate Ayam Madura',
         image:
-            'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
         readyInMinutes: 40,
         servings: 4,
         ingredients: [
@@ -715,6 +796,201 @@ class RecipeService {
           '7. Setelah semua bakso mengapung, besarkan api dan rebus hingga matang sekitar 5 menit. Angkat.',
           '8. Siapkan mangkuk: tata mie kuning rebus, sawi rebus, dan bakso. Siram dengan kuah kaldu bakso panas.',
           '9. Taburi daun bawang dan bawang goreng. Sajikan dengan sambal, kecap, dan saus sambal.',
+        ],
+      ),
+
+      // ═══ NEW INDONESIAN ICONIC RECIPES (5 jenis) ═══
+      const Recipe(
+        id: 19,
+        title: 'Rawon Surabaya',
+        image:
+            'https://images.unsplash.com/photo-1603899122634-f086ca5f5ddd?auto=format&fit=crop&w=800&q=80',
+        readyInMinutes: 120,
+        servings: 5,
+        ingredients: [
+          'Daging sapi sandung lamur (500 gram, potong 3x3 cm)',
+          'Kluwek (5 butir, ambil isinya)',
+          'Bawang merah (8 siung)',
+          'Bawang putih (5 siung)',
+          'Serai (3 batang, memarkan)',
+          'Lengkuas (2 ruas jari, memarkan)',
+          'Daun jeruk (5 lembar)',
+          'Daun salam (3 lembar)',
+          'Ketumbar bubuk (1 sdm)',
+          'Kunyit (1 ruas jari, bakar)',
+          'Jahe (1 ruas jari)',
+          'Minyak goreng (3 sdm)',
+          'Garam dan gula (secukupnya)',
+          'Telur asin (4 butir, untuk pelengkap)',
+          'Toge pendek (100 gram, untuk pelengkap)',
+          'Sambal terasi (untuk pelengkap)',
+        ],
+        instructions: [
+          '1. Rebus daging sapi dalam 2 liter air hingga mendidih dan empuk, sekitar 45 menit. Buang busa yang muncul.',
+          '2. Sangrai isi kluwek sebentar hingga hitam pekat, lalu haluskan bersama bawang merah, bawang putih, kunyit bakar, jahe, dan ketumbar.',
+          '3. Panaskan minyak goreng di wajan. Tumis bumbu halus bersama serai, lengkuas, daun jeruk, dan daun salam hingga harum dan matang, sekitar 7-8 menit.',
+          '4. Masukkan tumisan bumbu ke dalam rebusan daging. Aduk rata.',
+          '5. Masak dengan api kecil hingga daging benar-benar empuk dan kuah berwarna hitam pekat, sekitar 30-40 menit.',
+          '6. Bumbui dengan garam dan gula secukupnya. Koreksi rasa. Rawon harus terasa gurih dengan sedikit manis.',
+          '7. Angkat daging, potong kecil-kecil sesuai selera, lalu masukkan kembali ke dalam kuah.',
+          '8. Siapkan mangkuk saji, tuang rawon panas. Taburi bawang goreng di atasnya.',
+          '9. Sajikan dengan nasi hangat, telur asin belah, toge pendek, sambal terasi, dan kerupuk udang.',
+        ],
+      ),
+      const Recipe(
+        id: 20,
+        title: 'Coto Makassar',
+        image:
+            'https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=800&q=80',
+        readyInMinutes: 90,
+        servings: 4,
+        ingredients: [
+          'Daging sapi (400 gram, potong dadu)',
+          'Jeroan sapi (200 gram, bersihkan)',
+          'Kacang tanah goreng (200 gram, haluskan)',
+          'Bawang merah (8 siung)',
+          'Bawang putih (5 siung)',
+          'Serai (3 batang, ambil putihnya)',
+          'Lengkuas (3 ruas jari, memarkan)',
+          'Daun jeruk (4 lembar)',
+          'Ketumbar bubuk (1 sdm)',
+          'Jinten bubuk (1/2 sdt)',
+          'Air asam jawa (3 sdm)',
+          'Minyak goreng (3 sdm)',
+          'Garam dan kaldu sapi bubuk (secukupnya)',
+          'Daun bawang (3 batang, iris)',
+          'Bawang goreng (untuk taburan)',
+          'Jeruk nipis (untuk pelengkap)',
+        ],
+        instructions: [
+          '1. Rebus daging sapi dan jeroan dalam 2 liter air hingga setengah empuk, sekitar 30 menit. Angkat, potong dadu kecil. Sisihkan air rebusan sebagai kaldu.',
+          '2. Haluskan bawang merah, bawang putih, dan putih serai menggunakan blender.',
+          '3. Sangrai ketumbar dan jinten sebentar hingga harum, lalu campurkan ke bumbu halus.',
+          '4. Panaskan minyak goreng. Tumis bumbu halus bersama lengkuas dan daun jeruk hingga harum dan matang.',
+          '5. Masukkan kacang tanah yang sudah dihaluskan. Aduk rata dan tumis hingga kacang mengeluarkan minyak.',
+          '6. Tuangkan air kaldu rebusan daging ke dalam tumisan bumbu kacang. Aduk rata.',
+          '7. Masukkan potongan daging dan jeroan. Tambahkan air asam jawa. Masak dengan api kecil hingga bumbu meresap dan kuah mengental, sekitar 40-50 menit.',
+          '8. Bumbui dengan garam dan kaldu sapi bubuk. Koreksi rasa. Coto harus terasa gurih dengan sentuhan asam yang lembut.',
+          '9. Sajikan coto hangat dalam mangkuk, taburi daun bawang dan bawang goreng. Nikmati dengan ketupat atau buras dan perasan jeruk nipis.',
+        ],
+      ),
+      const Recipe(
+        id: 21,
+        title: 'Papeda & Ikan Kuah Kuning',
+        image:
+            'https://images.unsplash.com/photo-1553621046-fd5f4c64e2ba?auto=format&fit=crop&w=800&q=80',
+        readyInMinutes: 60,
+        servings: 4,
+        ingredients: [
+          'Tepung sagu (250 gram)',
+          'Air panas (750 ml)',
+          'Garam (1/2 sdt)',
+          'Ikan kakap atau kerapu (600 gram, potong 3 bagian)',
+          'Jeruk nipis (2 buah)',
+          'Bawang merah (6 siung)',
+          'Bawang putih (4 siung)',
+          'Cabai merah besar (5 buah)',
+          'Kunyit (2 ruas jari, bakar)',
+          'Jahe (2 ruas jari, memarkan)',
+          'Serai (3 batang, memarkan)',
+          'Daun jeruk (4 lembar)',
+          'Daun salam (2 lembar)',
+          'Daun kemangi (1 ikat, petiki daunnya)',
+          'Tomat hijau (2 buah, belah 4)',
+          'Minyak goreng (2 sdm)',
+          'Garam dan gula (secukupnya)',
+        ],
+        instructions: [
+          '1. Buat papeda: larutkan tepung sagu dengan 250 ml air dingin, aduk hingga rata. Sisihkan.',
+          '2. Didihkan sisa 500 ml air dalam panci besar. Tuang larutan sagu sambil terus diaduk cepat dengan spatula kayu.',
+          '3. Aduk terus hingga adonan mengental, bening, dan bertekstur lengket seperti lem. Angkat dan sisihkan. Papeda siap disajikan.',
+          '4. Lumuri potongan ikan dengan air jeruk nipis dan garam. Diamkan 15 menit, lalu bilas.',
+          '5. Haluskan bawang merah, bawang putih, cabai merah besar, dan kunyit bakar menggunakan blender.',
+          '6. Panaskan minyak di wajan. Tumis bumbu halus bersama jahe, serai, daun jeruk, dan daun salam hingga harum, sekitar 5 menit.',
+          '7. Tuangkan 500 ml air ke dalam tumisan bumbu. Masak hingga mendidih.',
+          '8. Masukkan potongan ikan ke dalam kuah kuning. Masak dengan api sedang hingga ikan matang, sekitar 10-15 menit. Jangan terlalu sering diaduk agar ikan tidak hancur.',
+          '9. Bumbui dengan garam dan gula. Masukkan tomat hijau dan daun kemangi. Masak sebentar, angkat. Sajikan papeda di piring bersama ikan kuah kuning di mangkuk terpisah.',
+        ],
+      ),
+      const Recipe(
+        id: 22,
+        title: 'Pempek Palembang',
+        image:
+            'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=800&q=80',
+        readyInMinutes: 75,
+        servings: 6,
+        ingredients: [
+          'Ikan tenggiri giling (500 gram)',
+          'Tepung sagu (250 gram)',
+          'Tepung terigu (50 gram)',
+          'Telur ayam (2 butir)',
+          'Air es (200 ml)',
+          'Garam (2 sdt)',
+          'Gula pasir (1 sdt)',
+          'Kaldu bubuk (1 sdt)',
+          'Minyak goreng (1 liter, untuk menggoreng)',
+          'Timun segar (1 buah, potong dadu)',
+          'Mie kuning rebus (200 gram, untuk pelengkap)',
+          'Gula merah (250 gram, sisir untuk cuko)',
+          'Air (300 ml)',
+          'Cabai rawit (10 buah, haluskan)',
+          'Bawang putih (4 siung, haluskan)',
+          'Ebi kering (2 sdm, haluskan)',
+          'Cuka (3 sdm)',
+          'Garam (1 sdt)',
+        ],
+        instructions: [
+          '1. Campur ikan tenggiri giling dengan garam, gula, dan kaldu bubuk. Aduk rata hingga berubah warna dan mengembang.',
+          '2. Masukkan telur dan air es sedikit demi sedikit sambil terus diuleni hingga adonan kalis.',
+          '3. Campurkan tepung sagu dan tepung terigu ke dalam adonan ikan. Aduk hingga semua tercampur rata dan bisa dibentuk.',
+          '4. Bentuk adonan sesuai selera: kapal selam (isi telur rebus), lenjer (lonjong), atau adaan (bulat).',
+          '5. Didihkan air dalam panci besar. Rebus pempek hingga mengapung, lalu angkat dan tiriskan.',
+          '6. Buat cuko: rebus gula merah dengan air hingga larut. Saring. Masukkan cabai, bawang putih, ebi, garam, dan cuka. Masak hingga mendidih dan mengental. Angkat.',
+          '7. Panaskan minyak goreng. Goreng pempek yang sudah direbus hingga kecoklatan dan renyah di luar, sekitar 3-4 menit.',
+          '8. Potong-potong pempek goreng di atas piring saji.',
+          '9. Siram dengan cuko, tambahkan mie kuning rebus, irisan timun, dan taburan ebi goreng. Sajikan selagi hangat.',
+        ],
+      ),
+      const Recipe(
+        id: 23,
+        title: 'Sop Buntut Bakar',
+        image:
+            'https://images.unsplash.com/photo-1603048588665-791ca8aea617?auto=format&fit=crop&w=800&q=80',
+        readyInMinutes: 120,
+        servings: 4,
+        ingredients: [
+          'Buntut sapi (1 kg, potong per ruas)',
+          'Air (2,5 liter)',
+          'Bawang merah (6 siung)',
+          'Bawang putih (4 siung)',
+          'Bawang bombai (1 buah, potong besar)',
+          'Cengkeh (4 butir)',
+          'Kapulaga (3 butir)',
+          'Kembang lawang (2 buah)',
+          'Kayu manis (5 cm)',
+          'Pala bubuk (1/2 sdt)',
+          'Jahe (3 ruas jari, memarkan)',
+          'Lengkuas (2 ruas jari, memarkan)',
+          'Daun bawang (3 batang, iris)',
+          'Seledri (3 batang, simpulkan)',
+          'Tomat (2 buah, potong 4)',
+          'Wortel (2 buah, potong bulat)',
+          'Kentang (3 buah, potong dadu)',
+          'Minyak goreng (2 sdm)',
+          'Garam, merica, dan kaldu sapi bubuk (secukupnya)',
+          'Jeruk nipis (untuk pelengkap)',
+          'Kecap manis (4 sdm, untuk olesan bakar)',
+        ],
+        instructions: [
+          '1. Cuci bersih buntut sapi. Rebus dalam air mendidih selama 10 menit, buang airnya. Ini untuk menghilangkan lemak berlebih.',
+          '2. Rebus kembali buntut dengan 2,5 liter air baru bersama jahe memarkan dan setengah bagian bawang putih geprek. Masak hingga daging empuk, sekitar 45-60 menit. Sisihkan buntut untuk dibakar.',
+          '3. Saring kaldu rebusan buntut, sisihkan.',
+          '4. Panaskan minyak. Tumis bawang merah, sisa bawang putih, dan bawang bombai hingga harum.',
+          '5. Masukkan cengkeh, kapulaga, kembang lawang, kayu manis, dan pala bubuk. Tumis sebentar hingga wangi.',
+          '6. Tuangkan kaldu sapi yang sudah disaring ke dalam tumisan. Masukkan lengkuas, seledri simpul, garam, merica, dan kaldu bubuk.',
+          '7. Masukkan wortel dan kentang. Masak hingga sayuran empuk. Angkat seledri simpul.',
+          '8. Sementara itu, lumuri buntut rebus dengan kecap manis. Bakar di atas grill pan atau teflon hingga kecoklatan dengan aroma bakar yang menggoda.',
+          '9. Sajikan sop buntut dalam mangkuk: letakkan buntut bakar di atas, tuang kuah sop bersama sayuran. Taburi irisan daun bawang, tomat segar, dan bawang goreng. Beri perasan jeruk nipis dan sambal sesuai selera.',
         ],
       ),
     ];

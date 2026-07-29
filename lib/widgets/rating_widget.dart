@@ -52,15 +52,18 @@ class RatingSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.12)),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -87,7 +90,7 @@ class RatingSection extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF2C3E50),
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
@@ -108,7 +111,7 @@ class RatingSection extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: currentRating > 0
                       ? const Color(0xFFF39C12)
-                      : Colors.grey[500],
+                      : colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -120,7 +123,7 @@ class RatingSection extends StatelessWidget {
                 _getRatingLabel(currentRating),
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: Colors.grey[500],
+                  color: colorScheme.onSurfaceVariant,
                   fontStyle: FontStyle.italic,
                 ),
               ),

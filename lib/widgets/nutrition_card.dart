@@ -16,6 +16,7 @@ class NutritionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
 
     final items = [
       NutritionItem(
@@ -67,12 +68,12 @@ class NutritionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.12)),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -99,19 +100,19 @@ class NutritionCard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF2C3E50),
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          ...items.map((item) => _buildNutritionBar(item)),
+          ...items.map((item) => _buildNutritionBar(item, colorScheme)),
         ],
       ),
     );
   }
 
-  Widget _buildNutritionBar(NutritionItem item) {
+  Widget _buildNutritionBar(NutritionItem item, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -125,7 +126,7 @@ class NutritionCard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: const Color(0xFF555555),
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               Text(

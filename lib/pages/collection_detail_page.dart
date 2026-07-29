@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -17,7 +16,7 @@ class CollectionDetailPage extends StatefulWidget {
 }
 
 class _CollectionDetailPageState extends State<CollectionDetailPage> {
-  List? _recipeIds;
+  List<int>? _recipeIds;
   bool _loading = true;
 
   @override
@@ -38,6 +37,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -61,7 +61,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                             style: GoogleFonts.poppins(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF2C3E50),
+                              color: colorScheme.onSurface,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -70,7 +70,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                             textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
                               fontSize: 14,
-                              color: Colors.grey[500],
+                              color: colorScheme.onSurfaceVariant,
                               height: 1.5,
                             ),
                           ),
@@ -80,7 +80,6 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                   );
                 }
 
-                // Get recipes from favorites and search results
                 final allRecipes = [
                   ...provider.favorites,
                   ...provider.searchResults,
@@ -104,7 +103,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                             style: GoogleFonts.poppins(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF2C3E50),
+                              color: colorScheme.onSurface,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -113,7 +112,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                             textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
                               fontSize: 14,
-                              color: Colors.grey[500],
+                              color: colorScheme.onSurfaceVariant,
                               height: 1.5,
                             ),
                           ),
@@ -125,7 +124,6 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
 
                 return Column(
                   children: [
-                    // Header info
                     Container(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                       child: Row(
@@ -149,22 +147,22 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                 style: GoogleFonts.poppins(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF2C3E50),
+                                  color: colorScheme.onSurface,
                                 ),
                               ),
                               Text(
                                 '${recipes.length} resep',
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
-                                  color: Colors.grey[500],
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
                           ),
                           const Spacer(),
-                          // Remove collection button
                           IconButton(
                             onPressed: () async {
+                              final navigator = Navigator.of(context);
                               final confirm = await showDialog<bool>(
                                 context: context,
                                 builder: (ctx) => AlertDialog(
@@ -188,16 +186,15 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                               if (confirm == true && mounted) {
                                 await provider.deleteCollection(
                                     widget.collection.id!);
-                                if (mounted) Navigator.pop(context);
+                                if (mounted) navigator.pop();
                               }
                             },
                             icon: Icon(Icons.delete_outline_rounded,
-                                color: Colors.grey[500]),
+                                color: colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ),
                     ),
-                    // Recipe list
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.only(
@@ -205,18 +202,17 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                         itemCount: recipes.length,
                         itemBuilder: (context, index) {
                           final recipe = recipes[index];
-                          // Build a simple card inline for collection display
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: colorScheme.surface,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                    color: Colors.grey.withValues(alpha: 0.1)),
+                                    color: colorScheme.outlineVariant),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.04),
+                                    color: colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.04),
                                     blurRadius: 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -230,22 +226,24 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                   child: SizedBox(
                                     width: 56,
                                     height: 56,
-                                    child: CachedNetworkImage(
-                                      imageUrl: recipe.image,
+                                    child: Image.network(
+                                      recipe.image,
+                                      width: 56,
+                                      height: 56,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Container(
+                                          color: colorScheme.primary.withValues(alpha: 0.08),
+                                        );
+                                      },
+                                      errorBuilder: (context, error, stackTrace) =>
                                           Container(
-                                        color: colorScheme.primary
-                                            .withValues(alpha: 0.08),
-                                      ),
-                                      errorWidget: (context, url, error) =>
-                                          Container(
-                                        color: colorScheme.primary
-                                            .withValues(alpha: 0.08),
+                                        color: colorScheme.primary.withValues(alpha: 0.08),
                                         child: Icon(
-                                            Icons.broken_image_outlined,
+                                            Icons.restaurant_rounded,
                                             size: 24,
-                                            color: Colors.grey[400]),
+                                            color: colorScheme.outline),
                                       ),
                                     ),
                                   ),
@@ -255,7 +253,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                   style: GoogleFonts.poppins(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF2C3E50),
+                                    color: colorScheme.onSurface,
                                   ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -264,25 +262,25 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                   children: [
                                     if (recipe.readyInMinutes != null) ...[
                                       Icon(Icons.timer_outlined,
-                                          size: 12, color: Colors.grey[500]),
+                                          size: 12, color: colorScheme.onSurfaceVariant),
                                       const SizedBox(width: 4),
                                       Text(
                                         '${recipe.readyInMinutes} mnt',
                                         style: GoogleFonts.poppins(
                                           fontSize: 11,
-                                          color: Colors.grey[500],
+                                          color: colorScheme.onSurfaceVariant,
                                         ),
                                       ),
                                       const SizedBox(width: 12),
                                     ],
                                     Icon(Icons.people_outline_rounded,
-                                        size: 12, color: Colors.grey[500]),
+                                        size: 12, color: colorScheme.onSurfaceVariant),
                                     const SizedBox(width: 4),
                                     Text(
                                       '${recipe.servings ?? '--'} porsi',
                                       style: GoogleFonts.poppins(
                                         fontSize: 11,
-                                        color: Colors.grey[500],
+                                        color: colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ],
@@ -298,7 +296,6 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                   padding: EdgeInsets.zero,
                                 ),
                                 onTap: () {
-                                  // Navigate to detail
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(

@@ -17,9 +17,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
   String _intolerance = 'any';
   int? _maxReadyTime;
 
+  // Indonesia placed FIRST as the prominent default recommendation
   final List<Map<String, String>> _cuisines = [
-    {'value': 'any', 'label': 'Semua'},
     {'value': 'indonesian', 'label': 'Indonesia'},
+    {'value': 'any', 'label': 'Semua'},
     {'value': 'chinese', 'label': 'China'},
     {'value': 'japanese', 'label': 'Jepang'},
     {'value': 'italian', 'label': 'Italia'},
@@ -71,9 +72,9 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        color: Colors.white,
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: colorScheme.surface,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -81,13 +82,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle
             Center(
               child: Container(
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -112,7 +112,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF2C3E50),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -124,6 +124,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                       _intolerance = 'any';
                       _maxReadyTime = null;
                     });
+                    // Default 'any' = semua jenis masakan (API punya lebih banyak variasi)
                   },
                   child: Text(
                     'Reset',
@@ -137,12 +138,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             ),
             const SizedBox(height: 20),
 
-            // Cuisine
+            // ─── CUISINE ──────────────────────────────────────────────────
             _buildSectionLabel('Jenis Masakan'),
             const SizedBox(height: 8),
-            _buildWrapChips(_cuisines, _cuisine, (val) {
-              setState(() => _cuisine = val);
-            }, colorScheme),
+            _buildCuisineSection(colorScheme),
             const SizedBox(height: 16),
 
             // Diet
@@ -204,19 +203,147 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     );
   }
 
+  // ─── PROMINENT CUISINE SECTION ──────────────────────────────────────────
+  // Indonesia ditampilkan pertama dengan badge rekomendasi + divider
+  Widget _buildCuisineSection(ColorScheme colorScheme) {
+    // Pisahkan Indonesia dari list utama
+    final otherCuisines = _cuisines
+        .where((c) => c['value'] != 'indonesian')
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 🔥 Indonesia chip — prominent with badge
+        _buildIndonesiaChip(colorScheme),
+        const SizedBox(height: 10),
+        // Subtle divider
+        Container(
+          height: 1,
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                colorScheme.primary.withValues(alpha: 0.3),
+                colorScheme.primary.withValues(alpha: 0.05),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Other cuisines (including 'Semua')
+        _buildWrapChips(otherCuisines, _cuisine, (val) {
+          setState(() => _cuisine = val);
+        }, colorScheme, chipFontSize: 11.5),
+      ],
+    );
+  }
+
+  // ─── INDONESIA SPECIAL CHIP ──────────────────────────────────────────────
+  Widget _buildIndonesiaChip(ColorScheme colorScheme) {
+    final isSelected = _cuisine == 'indonesian';
+    return GestureDetector(
+      onTap: () => setState(() => _cuisine = 'indonesian'),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.primary
+              : colorScheme.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.primary.withValues(alpha: 0.2),
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Flag / icon
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  '🇮🇩',
+                  style: TextStyle(fontSize: isSelected ? 18 : 16),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Indonesia',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? Colors.white : colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: 6),
+            // Badge rekomendasi
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '⭐ Rekomendasi',
+                style: GoogleFonts.poppins(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionLabel(String label) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Text(
       label,
       style: GoogleFonts.poppins(
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: const Color(0xFF2C3E50),
+        color: colorScheme.onSurface,
       ),
     );
   }
 
-  Widget _buildWrapChips(List<Map<String, String>> items, String selected,
-      Function(String) onSelected, ColorScheme colorScheme) {
+  Widget _buildWrapChips(
+    List<Map<String, String>> items,
+    String selected,
+    Function(String) onSelected,
+    ColorScheme colorScheme, {
+    double chipFontSize = 12,
+  }) {
     return Wrap(
       spacing: 8,
       runSpacing: 6,
@@ -228,8 +355,8 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
           label: Text(
             label,
             style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: isSelected ? Colors.white : const Color(0xFF2C3E50),
+              fontSize: chipFontSize,
+              color: isSelected ? Colors.white : colorScheme.onSurface,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
@@ -258,13 +385,14 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
       runSpacing: 6,
       children: _timeOptions.map((time) {
         final label = time == 0 ? 'Berapapun' : '$time menit';
-        final isSelected = _maxReadyTime == time || (time == 0 && _maxReadyTime == null);
+        final isSelected =
+            _maxReadyTime == time || (time == 0 && _maxReadyTime == null);
         return ChoiceChip(
           label: Text(
             label,
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: isSelected ? Colors.white : const Color(0xFF2C3E50),
+              color: isSelected ? Colors.white : colorScheme.onSurface,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
           ),

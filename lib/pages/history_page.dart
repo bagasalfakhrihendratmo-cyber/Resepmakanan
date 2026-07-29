@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../models/user_rating.dart';
 import '../providers/recipe_provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
@@ -50,7 +50,7 @@ class HistoryPage extends StatelessWidget {
                   }
                 },
                 icon: Icon(Icons.delete_sweep_rounded,
-                    color: Colors.grey[600]),
+                    color: colorScheme.onSurfaceVariant),
                 tooltip: 'Hapus semua riwayat',
               );
             },
@@ -77,7 +77,7 @@ class HistoryPage extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF2C3E50),
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -86,7 +86,7 @@ class HistoryPage extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: Colors.grey[500],
+                        color: colorScheme.onSurfaceVariant,
                         height: 1.5,
                       ),
                     ),
@@ -134,14 +134,14 @@ class HistoryPage extends StatelessWidget {
             child: Row(
               children: [
                 Icon(Icons.calendar_today_rounded,
-                    size: 14, color: Colors.grey[500]),
+                    size: 14, color: colorScheme.onSurfaceVariant),
                 const SizedBox(width: 6),
                 Text(
                   dateKey,
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey[500],
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -165,15 +165,16 @@ class HistoryPage extends StatelessWidget {
     ColorScheme colorScheme,
   ) {
     final history = item.item;
+    final isDark = colorScheme.brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -188,16 +189,21 @@ class HistoryPage extends StatelessWidget {
             width: 48,
             height: 48,
             child: history.imageUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: history.imageUrl,
+                ? Image.network(
+                    history.imageUrl,
+                    width: 48,
+                    height: 48,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        color: colorScheme.primary.withValues(alpha: 0.08),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) => Container(
                       color: colorScheme.primary.withValues(alpha: 0.08),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: colorScheme.primary.withValues(alpha: 0.08),
-                      child: Icon(Icons.broken_image_outlined,
-                          size: 20, color: Colors.grey[400]),
+                      child: Icon(Icons.restaurant_rounded,
+                          size: 20, color: colorScheme.outline),
                     ),
                   )
                 : Container(
@@ -212,7 +218,7 @@ class HistoryPage extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFF2C3E50),
+            color: colorScheme.onSurface,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -221,14 +227,14 @@ class HistoryPage extends StatelessWidget {
           _formatTimeAgo(history.viewedAt),
           style: GoogleFonts.poppins(
             fontSize: 11,
-            color: Colors.grey[500],
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
         trailing: IconButton(
           onPressed: () =>
               provider.deleteSearchHistoryItem(history.id!),
           icon: Icon(Icons.close_rounded,
-              size: 18, color: Colors.grey[400]),
+              size: 18, color: colorScheme.outline),
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
           splashRadius: 16,
@@ -271,7 +277,7 @@ class HistoryPage extends StatelessWidget {
 }
 
 class _HistoryWithIndex {
-  final dynamic item;
+  final SearchHistory item;
   final int index;
 
   _HistoryWithIndex(this.item, this.index);

@@ -52,7 +52,7 @@ class CollectionsPage extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF2C3E50),
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -61,7 +61,7 @@ class CollectionsPage extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: Colors.grey[500],
+                        color: colorScheme.onSurfaceVariant,
                         height: 1.5,
                       ),
                     ),
@@ -133,16 +133,17 @@ class CollectionsPage extends StatelessWidget {
       const Color(0xFFF39C12),
     ];
     final color = colors[name.length % colors.length];
+    final isDark = colorScheme.brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -165,25 +166,25 @@ class CollectionsPage extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFF2C3E50),
+            color: colorScheme.onSurface,
           ),
         ),
         subtitle: Text(
           '$recipeCount resep',
           style: GoogleFonts.poppins(
             fontSize: 12,
-            color: Colors.grey[500],
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
+            Icon(Icons.chevron_right_rounded, color: colorScheme.outline),
             const SizedBox(width: 4),
             GestureDetector(
               onTap: onDelete,
               child: Icon(Icons.delete_outline_rounded,
-                  size: 20, color: Colors.grey[400]),
+                  size: 20, color: colorScheme.outline),
             ),
           ],
         ),
