@@ -39,7 +39,7 @@ void main() {
     // test ends.
     await tester.pump(const Duration(milliseconds: 2200));
 
-    expect(find.text('Resep Masakan'), findsOneWidget);
+    expect(find.text('Resep Nusantara'), findsOneWidget);
   });
 
   testWidgets('skip button navigates to main screen before 10s',

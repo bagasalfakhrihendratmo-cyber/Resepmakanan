@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../utils/recipe_image_mapper.dart';
 import 'ingredient.dart';
 
 class Recipe {
@@ -22,6 +23,31 @@ class Recipe {
   final List<String> ingredients;
   final List<String> instructions;
   final List<Ingredient>? ingredientData;
+
+  /// Gambar yang benar-benar sesuai dengan judul resep.
+  ///
+  /// Menyelesaikan gambar melalui [RecipeImageMapper]: jika judul dikenali
+  /// sebagai hidangan Indonesia (mis. Rawon Surabaya, Coto Makassar,
+  /// Pempek Palembang), gambar mapping yang terverifikasi akan selalu
+  /// digunakan — terlepas dari URL mentah yang tersimpan di `image`.
+  /// Ini menjamin kartu resep, halaman detail, favorit, riwayat, dan
+  /// koleksi SELALU menampilkan gambar yang sama dan sinkron.
+  String get displayImage =>
+      RecipeImageMapper.resolveImage(title: title, fallback: image);
+
+  /// Menyalin resep dengan nilai yang diubah.
+  Recipe copyWith({String? image}) {
+    return Recipe(
+      id: id,
+      title: title,
+      image: image ?? this.image,
+      readyInMinutes: readyInMinutes,
+      servings: servings,
+      ingredients: ingredients,
+      instructions: instructions,
+      ingredientData: ingredientData,
+    );
+  }
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
     final ingredients = <String>[];

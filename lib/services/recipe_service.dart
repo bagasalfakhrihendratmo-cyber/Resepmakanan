@@ -7,51 +7,12 @@ import 'package:http/http.dart' as http;
 import '../models/nutrition_info.dart';
 import '../models/recipe.dart';
 import '../utils/indonesian_food_matcher.dart';
+import '../utils/recipe_image_mapper.dart';
 import 'database_service.dart';
 
 class RecipeService {
   static const String _baseUrl = 'https://api.spoonacular.com/recipes';
 
-  /// List of food photos from Unsplash (has CORS headers ✅).
-  /// Used as fallback for Spoonacular images which are blocked by
-  /// Flutter Web CanvasKit (img.spoonacular.com doesn't set CORS headers).
-  static const List<String> _unsplashImages = [
-    'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1603366445781-2fedc492e0a4?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1603895544018-0e8f6af6c5dc?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1626804475359-6a4c2e8c3a6a?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1603899122634-f086ca5f5ddd?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1586999768265-24af89630739?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1553621046-fd5f4c64e2ba?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1603048588665-791ca8aea617?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80',
-  ];
-
-  /// Spoonacular CDN images are blocked in Flutter Web CanvasKit (no CORS).
-  /// Fall back to an Unsplash food photo (has CORS headers ✅) based on recipe ID.
-  String _unsplashFallback(int recipeId) {
-    return _unsplashImages[recipeId % _unsplashImages.length];
-  }
 
   /// Search for Indonesian recipes using local database first.
   /// Falls back to Spoonacular API if local DB has no results.
@@ -69,7 +30,7 @@ class RecipeService {
     if (matchedId != null) {
       final recipe = await dbService.getIndonesianRecipeById(matchedId);
       if (recipe != null) {
-        return _applyFilter([recipe], filter);
+        return _applyFilter([_recipeWithSafeImage(recipe)], filter);
       }
     }
 
@@ -137,27 +98,29 @@ class RecipeService {
     // ─── PRIORITY 5: Return all local recipes as final fallback ───
     final allLocal = await dbService.searchIndonesianRecipes('');
     if (allLocal.isNotEmpty) {
-      return _applyFilter(allLocal, filter);
+      final safeLocal = allLocal.map(_recipeWithSafeImage).toList();
+      return _applyFilter(safeLocal, filter);
     }
 
-    return _applyFilter(_demoRecipes().take(5).toList(), filter);
+    final demoFallback =
+        _demoRecipes().take(5).map(_recipeWithSafeImage).toList();
+    return _applyFilter(demoFallback, filter);
   }
 
-  /// Re-create a Recipe with an Unsplash fallback image if it's from Spoonacular CDN.
+  /// Menyelesaikan gambar resep agar SELALU sesuai dengan judulnya.
+  ///
+  /// 1. Jika judul dikenali sebagai hidangan Indonesia → gambar mapping
+  ///    terverifikasi (Wikimedia Commons, CORS ✅) dipakai, apa pun gambar
+  ///    asli dari API.
+  /// 2. Jika bukan CDN Spoonacular dan tidak kosong → gambar API dipertahankan
+  ///    (gambar ini berasal dari resep yang SAMA dengan `title`).
+  /// 3. Jika dari CDN Spoonacular (tidak punya CORS) → gambar generik
+  ///    deterministik berdasarkan judul (judul yang sama → gambar yang sama).
   Recipe _recipeWithSafeImage(Recipe recipe) {
-    if (recipe.image.contains('img.spoonacular.com')) {
-      return Recipe(
-        id: recipe.id,
-        title: recipe.title,
-        image: _unsplashFallback(recipe.id),
-        readyInMinutes: recipe.readyInMinutes,
-        servings: recipe.servings,
-        ingredients: recipe.ingredients,
-        instructions: recipe.instructions,
-        ingredientData: recipe.ingredientData,
-      );
-    }
-    return recipe;
+    final resolved =
+        RecipeImageMapper.resolveImage(title: recipe.title, fallback: recipe.image);
+    if (resolved == recipe.image) return recipe;
+    return recipe.copyWith(image: resolved);
   }
 
   Future<List<Recipe>> searchRecipes(
@@ -314,14 +277,14 @@ class RecipeService {
       final localRecipe = await dbService.getIndonesianRecipeById(id);
       if (localRecipe != null) {
         debugPrint('✅ Detail dari database lokal (ID $id): ${localRecipe.title}');
-        return localRecipe;
+        return _recipeWithSafeImage(localRecipe);
       }
     }
 
     // ═══ PRIORITAS 2: Cek demo recipes (ID lokal 1-23) ═══
     final demoMatch = _demoRecipes().where((r) => r.id == id).toList();
     if (demoMatch.isNotEmpty) {
-      return demoMatch.first;
+      return _recipeWithSafeImage(demoMatch.first);
     }
 
     // ═══ PRIORITAS 3: Spoonacular API (HANYA untuk ID API asli) ═══
@@ -373,6 +336,7 @@ class RecipeService {
               recipe.ingredients
                   .any((ing) => ing.toLowerCase().contains(query)),
         )
+        .map(_recipeWithSafeImage)
         .toList();
     return _applyFilter(recipes, filter);
   }

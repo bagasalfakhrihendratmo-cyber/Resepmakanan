@@ -227,7 +227,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                     width: 56,
                                     height: 56,
                                     child: Image.network(
-                                      recipe.image,
+                                      recipe.displayImage,
                                       width: 56,
                                       height: 56,
                                       fit: BoxFit.cover,

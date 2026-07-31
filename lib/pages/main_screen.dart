@@ -231,7 +231,7 @@ class _MainScreenState extends State<MainScreen>
                     const Text('🍳', style: TextStyle(fontSize: 28)),
                     const SizedBox(width: 8),
                     Text(
-                      'Resep Masakan',
+                      'Resep Nusantara',
                       style: GoogleFonts.poppins(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,

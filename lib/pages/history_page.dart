@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/user_rating.dart';
 import '../providers/recipe_provider.dart';
+import '../utils/recipe_image_mapper.dart';
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
@@ -166,6 +167,12 @@ class HistoryPage extends StatelessWidget {
   ) {
     final history = item.item;
     final isDark = colorScheme.brightness == Brightness.dark;
+    // Selalu selesaikan gambar lewat mapper: cache lama (URL acak) otomatis
+    // dikoreksi agar gambar riwayat SINKRON dengan kartu & halaman detail.
+    final displayImage = RecipeImageMapper.resolveImage(
+      title: history.title,
+      fallback: history.imageUrl,
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -188,9 +195,9 @@ class HistoryPage extends StatelessWidget {
           child: SizedBox(
             width: 48,
             height: 48,
-            child: history.imageUrl.isNotEmpty
+            child: displayImage.isNotEmpty
                 ? Image.network(
-                    history.imageUrl,
+                    displayImage,
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,

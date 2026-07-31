@@ -70,7 +70,7 @@ class RecipeCard extends StatelessWidget {
                           child: Stack(
                             children: [
                               Image.network(
-                                recipe.image,
+                                recipe.displayImage,
                                 width: 130,
                                 height: 130,
                                 fit: BoxFit.cover,

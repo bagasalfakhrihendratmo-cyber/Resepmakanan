@@ -432,7 +432,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 bottomRight: Radius.circular(30),
               ),
               child: Image.network(
-                recipe.image,
+                recipe.displayImage,
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: 320,

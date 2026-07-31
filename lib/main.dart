@@ -29,7 +29,7 @@ class RecipeApp extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
-      title: 'Resep Masakan',
+      title: 'Resep Nusantara',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,
       theme: _buildLightTheme(),

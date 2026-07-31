@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:makanan/services/recipe_service.dart';
 import 'package:makanan/utils/indonesian_food_matcher.dart';
+import 'package:makanan/utils/recipe_image_mapper.dart';
 
 void main() {
   final recipeService = RecipeService();
@@ -194,15 +195,30 @@ void main() {
   // IMAGE MATCHING VERIFICATION
   // ─────────────────────────────────────────────────────────────────────────
   group('Recipe images match recipe names', () {
-    test('semua resep demo memiliki gambar dari Unsplash (bukan Spoonacular)', () async {
+    test('semua gambar berasal dari sumber dengan CORS (Wikimedia/Unsplash, bukan Spoonacular)', () async {
       final recipes = await recipeService.searchRecipes('nasi');
       for (final recipe in recipes) {
         expect(
-          recipe.image.startsWith('https://images.unsplash.com/'),
+          recipe.image.startsWith('https://upload.wikimedia.org/') ||
+              recipe.image.startsWith('https://images.unsplash.com/'),
           isTrue,
-          reason: 'Gambar ${recipe.title} harus dari Unsplash, bukan Spoonacular. '
-              'URL: ${recipe.image}',
+          reason: 'Gambar ${recipe.title} harus dari Wikimedia/Unsplash (CORS ✅), '
+              'bukan Spoonacular CDN. URL: ${recipe.image}',
         );
+      }
+    });
+
+    test('gambar mapping dipakai untuk hidangan Indonesia yang dikenal', () async {
+      final recipes = await recipeService.searchRecipes('nasi');
+      for (final recipe in recipes) {
+        final mapped = RecipeImageMapper.imageForTitle(recipe.title);
+        if (mapped != null) {
+          expect(
+            recipe.image, equals(mapped),
+            reason: '${recipe.title} harus memakai gambar mapping, bukan gambar acak. '
+                'Gambar: ${recipe.image}',
+          );
+        }
       }
     });
 
@@ -231,6 +247,39 @@ void main() {
           reason: 'URL gambar ${recipe.title} harus HTTPS: ${recipe.image}',
         );
       }
+    });
+
+    test('Rawon Surabaya selalu menampilkan gambar rawon', () async {
+      final recipes = await recipeService.searchRecipes('rawon');
+      final rawon = recipes.firstWhere(
+        (r) => r.title.toLowerCase().contains('rawon'),
+      );
+      expect(rawon.image, contains('Rawon_Setan'));
+      expect(rawon.image, contains('upload.wikimedia.org'));
+    });
+
+    test('Coto Makassar selalu menampilkan gambar coto makassar', () async {
+      final recipes = await recipeService.searchRecipes('coto');
+      final coto = recipes.firstWhere(
+        (r) => r.title.toLowerCase().contains('coto'),
+      );
+      expect(coto.image, contains('Coto_Makassar'));
+    });
+
+    test('Pempek Palembang selalu menampilkan gambar pempek', () async {
+      final recipes = await recipeService.searchRecipes('pempek');
+      final pempek = recipes.firstWhere(
+        (r) => r.title.toLowerCase().contains('pempek'),
+      );
+      expect(pempek.image, contains('Pempek'));
+    });
+
+    test('Papeda selalu menampilkan gambar papeda', () async {
+      final recipes = await recipeService.searchRecipes('papeda');
+      final papeda = recipes.firstWhere(
+        (r) => r.title.toLowerCase().contains('papeda'),
+      );
+      expect(papeda.image, contains('papeda'));
     });
   });
 
@@ -343,7 +392,13 @@ void main() {
       expect(recipe, isNotNull);
       expect(recipe!.title, contains('Nasi Goreng Jawa'));
       expect(recipe.title.toLowerCase(), isNot(contains('anchovies')));
-      expect(recipe.image, startsWith('https://images.unsplash.com/'));
+      // Gambar harus dari sumber CORS ✅ dan sesuai judul (nasi goreng).
+      expect(
+        recipe.image.startsWith('https://upload.wikimedia.org/') ||
+            recipe.image.startsWith('https://images.unsplash.com/'),
+        isTrue,
+      );
+      expect(recipe.image.contains('img.spoonacular.com'), isFalse);
     });
 
     test('REGRESI: getRecipeDetail(5) tidak pernah memanggil API Spoonacular untuk ID lokal', () async {

@@ -304,7 +304,8 @@ class RecipeProvider extends ChangeNotifier {
       await _databaseService.addSearchHistory(SearchHistory(
         recipeId: recipe.id,
         title: recipe.title,
-        imageUrl: recipe.image,
+        // Simpan gambar yang benar-benar sesuai judul, bukan gambar acak lama.
+        imageUrl: recipe.displayImage,
         viewedAt: DateTime.now(),
       ));
       await loadSearchHistory();

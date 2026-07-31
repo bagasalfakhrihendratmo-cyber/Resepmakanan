@@ -481,7 +481,7 @@ class _SplashScreenState extends State<SplashScreen>
           child: FadeTransition(
             opacity: _titleOpacityAnim,
             child: Text(
-              'Resep Masakan',
+              'Resep Nusantara',
               style: GoogleFonts.poppins(
                 fontSize: 36,
                 fontWeight: FontWeight.w800,

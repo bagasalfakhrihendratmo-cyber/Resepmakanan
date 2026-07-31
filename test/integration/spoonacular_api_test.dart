@@ -230,7 +230,8 @@ void main() {
         if (firstImage.contains('img.spoonacular.com')) {
           print('⚠️ Gambar dari img.spoonacular.com - TIDAK punya CORS header!');
           print('❌ Ini masalah untuk Flutter Web CanvasKit.');
-          print('✅ SOLUSI: RecipeService sudah mengganti dengan gambar Unsplash.');
+          print('✅ SOLUSI: RecipeImageMapper mengganti gambar CDN dengan gambar '
+              'Wikimedia Commons yang sesuai judul (CORS ✅).');
         } else if (firstImage.isNotEmpty) {
           print('✅ Gambar dari sumber lain.');
         }
