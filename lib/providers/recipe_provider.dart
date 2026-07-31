@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/nutrition_info.dart';
@@ -9,8 +11,46 @@ import '../services/recipe_service.dart';
 class RecipeProvider extends ChangeNotifier {
   RecipeProvider({bool autoLoadFavorites = true}) {
     if (autoLoadFavorites) {
-      loadFavorites();
+      _initApp();
     }
+  }
+
+  /// Tracks the real app initialization progress (0.0 → 1.0)
+  /// so the splash screen can show an honest loading bar.
+  double _appInitProgress = 0.0;
+  String _initStatus = 'Memulai...';
+
+  double get appInitProgress => _appInitProgress;
+  String get initStatus => _initStatus;
+
+  /// Kicks off the full initialization chain and reports real progress.
+  Future<void> _initApp() async {
+    _setInitProgress(0.02, 'Menyiapkan aplikasi...');
+
+    // Small micro-task so the splash UI can render first
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    _setInitProgress(0.10, 'Menyambungkan database...');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Step 1 — Load favorites (the heaviest local op)
+    _setInitProgress(0.25, 'Memuat resep favorit...');
+    await loadFavorites();
+
+    // Step 2 — Load collections
+    _setInitProgress(0.55, 'Memuat koleksi...');
+    await loadCollections();
+
+    // Done
+    _appInitProgress = 1.0;
+    _initStatus = 'Selesai! 🎉';
+    notifyListeners();
+  }
+
+  void _setInitProgress(double value, String status) {
+    _appInitProgress = value;
+    _initStatus = status;
+    notifyListeners();
   }
 
   final RecipeService _recipeService = RecipeService();
@@ -76,6 +116,7 @@ class RecipeProvider extends ChangeNotifier {
   bool get nutritionLoading => _nutritionLoading;
 
   // ─── EXISTING METHODS ────────────────────────────────────────────────────
+
   Future<void> searchRecipes(String query, {String filter = 'all'}) async {
     _isLoading = true;
     _errorMessage = null;
