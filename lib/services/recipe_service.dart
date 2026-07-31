@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 
 import '../models/nutrition_info.dart';
 import '../models/recipe.dart';
+import '../utils/indonesian_food_matcher.dart';
+import 'database_service.dart';
 
 class RecipeService {
   static const String _baseUrl = 'https://api.spoonacular.com/recipes';
@@ -49,6 +51,96 @@ class RecipeService {
   /// Fall back to an Unsplash food photo (has CORS headers ✅) based on recipe ID.
   String _unsplashFallback(int recipeId) {
     return _unsplashImages[recipeId % _unsplashImages.length];
+  }
+
+  /// Search for Indonesian recipes using local database first.
+  /// Falls back to Spoonacular API if local DB has no results.
+  /// Always returns recipes with correct, matching images.
+  Future<List<Recipe>> searchIndonesianRecipes(
+    String query,
+    DatabaseService dbService, {
+    String filter = 'all',
+  }) async {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) return [];
+
+    // ─── PRIORITY 1: Check IndonesianFoodMatcher for exact keyword match ───
+    final matchedId = IndonesianFoodMatcher.getLocalRecipeId(query);
+    if (matchedId != null) {
+      final recipe = await dbService.getIndonesianRecipeById(matchedId);
+      if (recipe != null) {
+        return _applyFilter([recipe], filter);
+      }
+    }
+
+    // ─── PRIORITY 2: Search local database by keyword ───
+    final localResults = await dbService.searchIndonesianRecipes(normalizedQuery);
+
+    if (localResults.isNotEmpty) {
+      // Always ensure safe images for local results
+      final safeRecipes = localResults.map(_recipeWithSafeImage).toList();
+      return _applyFilter(safeRecipes, filter);
+    }
+
+    // ─── PRIORITY 3: Try Spoonacular API with cuisine=Indonesian ───
+    final apiKey = _apiKey;
+    if (apiKey.isNotEmpty && apiKey != 'demo_key') {
+      final mappedKeywords = IndonesianFoodMatcher.getMatchingKeywords(query);
+      final apiQuery = mappedKeywords.isNotEmpty ? mappedKeywords.first : normalizedQuery;
+
+      final params = <String, String>{
+        'apiKey': apiKey,
+        'query': apiQuery,
+        'number': '10',
+        'addRecipeInformation': 'true',
+        'fillIngredients': 'true',
+        'instructionsRequired': 'true',
+        'cuisine': 'Indonesian',
+      };
+
+      final uri = Uri.parse('$_baseUrl/complexSearch')
+          .replace(queryParameters: params);
+
+      try {
+        final response = await http.get(uri);
+        if (response.statusCode == 200) {
+          final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+          final results = decoded['results'] as List<dynamic>? ?? <dynamic>[];
+          final totalResults = decoded['totalResults'] ?? 0;
+
+          debugPrint('🌐 Spoonacular API: query=$apiQuery, totalResults=$totalResults, returned=${results.length}');
+
+          if (results.isNotEmpty) {
+            final apiRecipes = results
+                .map((item) => _recipeWithSafeImage(
+                    Recipe.fromJson(item as Map<String, dynamic>)))
+                .toList();
+            debugPrint('✅ API successful: ${apiRecipes.length} Indonesian recipes from API');
+            return _applyFilter(apiRecipes, filter);
+          }
+          debugPrint('⚠️ API returned 0 results for "$apiQuery" - using local data');
+        } else {
+          debugPrint('❌ API error: status ${response.statusCode}');
+        }
+      } catch (e) {
+        debugPrint('❌ API exception: $e - falling back to local data');
+      }
+    }
+
+    // ─── PRIORITY 4: Final fallback - search in demo recipes ───
+    // (_searchDemoRecipes sudah menerapkan filter secara internal)
+    final demoResults = _searchDemoRecipes(normalizedQuery, filter);
+    if (demoResults.isNotEmpty) {
+      return demoResults;
+    }
+
+    // ─── PRIORITY 5: Return all local recipes as final fallback ───
+    final allLocal = await dbService.searchIndonesianRecipes('');
+    if (allLocal.isNotEmpty) {
+      return _applyFilter(allLocal, filter);
+    }
+
+    return _applyFilter(_demoRecipes().take(5).toList(), filter);
   }
 
   /// Re-create a Recipe with an Unsplash fallback image if it's from Spoonacular CDN.
@@ -144,7 +236,34 @@ class RecipeService {
     return _searchDemoRecipes(normalizedQuery, filter);
   }
 
-  Future<NutritionInfo?> getNutritionInfo(int recipeId) async {
+  Future<NutritionInfo?> getNutritionInfo(
+    int recipeId, {
+    DatabaseService? dbService,
+  }) async {
+    // ⚠️ PENTING: ID resep lokal (SQLite/demo) TIDAK ada di Spoonacular.
+    // Memanggil API dengan ID lokal akan mengambil data resep LAIN.
+    // Contoh: ID lokal 5 (Nasi Goreng Jawa) = ID 5 Spoonacular (Fried Anchovies)
+    if (dbService != null) {
+      final localRecipe = await dbService.getIndonesianRecipeById(recipeId);
+      if (localRecipe != null) {
+        debugPrint('⚠️ Nutrisi dilewati untuk resep lokal ID $recipeId');
+        return null;
+      }
+    }
+
+    // Juga cek demo recipes (ID lokal 1-23)
+    if (_demoRecipes().any((r) => r.id == recipeId)) {
+      return null;
+    }
+
+    // ⚠️ ID lokal lainnya (24, 28, 76, dll.) juga TIDAK boleh dikirim ke API
+    // karena bisa bertabrakan dengan resep Spoonacular lain (konsisten dengan
+    // getRecipeDetail).
+    if (IndonesianFoodMatcher.isLocalRecipeId(recipeId)) {
+      debugPrint('⚠️ Nutrisi dilewati untuk resep lokal ID $recipeId');
+      return null;
+    }
+
     final apiKey = _apiKey;
     if (apiKey.isEmpty || apiKey == 'demo_key') {
       return null;
@@ -183,13 +302,40 @@ class RecipeService {
     }
   }
 
-  Future<Recipe?> getRecipeDetail(int id) async {
+  Future<Recipe?> getRecipeDetail(
+    int id, {
+    DatabaseService? dbService,
+  }) async {
+    // ═══ PRIORITAS 1: Cek database lokal Indonesia ═══
+    // ⚠️ PENTING: Resep lokal (mis. Nasi Goreng Jawa ID 5) memiliki ID yang
+    // SAMA dengan resep BERBEDA di Spoonacular (ID 5 = Fried Anchovies).
+    // Selalu cek database lokal DULU agar detail SINKRON dengan pencarian.
+    if (dbService != null) {
+      final localRecipe = await dbService.getIndonesianRecipeById(id);
+      if (localRecipe != null) {
+        debugPrint('✅ Detail dari database lokal (ID $id): ${localRecipe.title}');
+        return localRecipe;
+      }
+    }
+
+    // ═══ PRIORITAS 2: Cek demo recipes (ID lokal 1-23) ═══
+    final demoMatch = _demoRecipes().where((r) => r.id == id).toList();
+    if (demoMatch.isNotEmpty) {
+      return demoMatch.first;
+    }
+
+    // ═══ PRIORITAS 3: Spoonacular API (HANYA untuk ID API asli) ═══
+    // ⚠️ ID yang dikenali sebagai resep lokal (mis. 24, 28, 76 dari matcher)
+    // TIDAK BOLEH dikirim ke API — bisa bertabrakan dengan resep Spoonacular
+    // lain. Kembalikan null agar UI tetap memakai resep yang dipilih user.
+    if (IndonesianFoodMatcher.isLocalRecipeId(id)) {
+      debugPrint('⚠️ Detail tidak ditemukan untuk resep lokal ID $id');
+      return null;
+    }
+
     final apiKey = _apiKey;
     if (apiKey.isEmpty || apiKey == 'demo_key') {
-      return _demoRecipes().firstWhere(
-        (recipe) => recipe.id == id,
-        orElse: () => _demoRecipes().first,
-      );
+      return null;
     }
 
     final uri = Uri.parse('$_baseUrl/$id/information?apiKey=$apiKey');
@@ -204,13 +350,10 @@ class RecipeService {
         );
       }
     } catch (_) {
-      // Fallback to demo data when the API cannot be reached.
+      // Kembalikan null agar halaman detail tetap menampilkan resep yang dipilih.
     }
 
-    return _demoRecipes().firstWhere(
-      (recipe) => recipe.id == id,
-      orElse: () => _demoRecipes().first,
-    );
+    return null;
   }
 
   String get _apiKey {

@@ -154,8 +154,6 @@ class IndonesianFoodMatcher {
     'wedang jahe': 80,
 
     // ═══ MASAKAN PADANG ═══
-    'rendang': 15,
-    'gulai': 36,
     'dendeng balado': 81,
     'dendeng': 81,
     'paru': 82,
@@ -189,27 +187,29 @@ class IndonesianFoodMatcher {
 
   /// Daftar keyword umum makanan Indonesia (tanpa mapping spesifik).
   /// Digunakan untuk deteksi apakah query adalah makanan Indonesia.
-  static const Set<String> _indonesianFoodSet = {
-    ..._keywordToLocalId.keys,
-    // Tambahan keyword umum tanpa ID spesifik
-    'masakan indonesia',
-    'makanan indonesia',
-    'resep indonesia',
-    'indonesia',
-    'nusantara',
-    'makanan tradisional',
-    'masakan rumahan',
-    'masakan nusantara',
-    'jajanan pasar',
-    'jajanan',
-    'kue tradisional',
-    'kue basah',
-    'kue kering',
-    'lauk',
-    'lauk pauk',
-    'sambal',
-    'sambal goreng',
-  };
+  static final Set<String> _indonesianFoodSet = () {
+    return {
+      ..._keywordToLocalId.keys,
+      // Tambahan keyword umum tanpa ID spesifik
+      'masakan indonesia',
+      'makanan indonesia',
+      'resep indonesia',
+      'indonesia',
+      'nusantara',
+      'makanan tradisional',
+      'masakan rumahan',
+      'masakan nusantara',
+      'jajanan pasar',
+      'jajanan',
+      'kue tradisional',
+      'kue basah',
+      'kue kering',
+      'lauk',
+      'lauk pauk',
+      'sambal',
+      'sambal goreng',
+    };
+  }();
 
   /// Cek apakah query mengandung keyword makanan Indonesia.
   static bool isIndonesianFood(String query) {
@@ -230,9 +230,10 @@ class IndonesianFoodMatcher {
   }
 
   /// Mendapatkan ID resep lokal yang paling cocok untuk query.
-  /// Mengembalikan null jika tidak ada mapping.
+  /// Mengembalikan null jika tidak ada mapping atau query kosong.
   static int? getLocalRecipeId(String query) {
     final lowerQuery = query.trim().toLowerCase();
+    if (lowerQuery.isEmpty) return null;
 
     // Cari exact match dulu
     if (_keywordToLocalId.containsKey(lowerQuery)) {
@@ -263,6 +264,14 @@ class IndonesianFoodMatcher {
     }
 
     return matches;
+  }
+
+  /// Cek apakah sebuah ID termasuk ID resep lokal (bukan ID Spoonacular asli).
+  /// ID resep lokal TIDAK boleh dikirim ke API Spoonacular karena bisa
+  /// bertabrakan dengan resep Spoonacular lain (mis. ID lokal 5 = Nasi Goreng
+  /// Jawa, tetapi ID 5 di Spoonacular = Fried Anchovies with Sage).
+  static bool isLocalRecipeId(int id) {
+    return _keywordToLocalId.values.contains(id);
   }
 
   /// Daftar ID resep lokal yang direkomendasikan untuk ditampilkan saat

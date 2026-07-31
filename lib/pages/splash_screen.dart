@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -48,12 +49,24 @@ class _SplashScreenState extends State<SplashScreen>
   late final DateTime _splashStartTime;
   bool _exitTriggered = false;
 
+  /// Fallback timer so the splash NEVER gets stuck at 100%.
+  /// Once init finishes early, the provider stops notifying, which means
+  /// build() (and thus _checkExitCondition) won't run again. This timer
+  /// guarantees the exit fires after the minimum splash duration.
+  Timer? _exitTimer;
+
   /// Tracks the last known progress so we can re-trigger the
   /// bar animation on every real change from the provider.
   double _lastProgress = -1.0;
 
-  // Minimum splash duration so the entrance animation doesn't cut off.
-  static const Duration _minSplashDuration = Duration(milliseconds: 2200);
+  /// Timer agar tombol "Lewati" muncul setelah animasi masuk (±2 detik)
+  /// sempat terlihat, bukan langsung dari detik pertama.
+  Timer? _skipTimer;
+  bool _skipVisible = false;
+
+  // Minimum splash duration: 10 detik (sesuai permintaan user).
+  // Setelah 10 detik berlalu, splash langsung pindah ke MainScreen.
+  static const Duration _minSplashDuration = Duration(seconds: 10);
 
   @override
   void initState() {
@@ -74,6 +87,12 @@ class _SplashScreenState extends State<SplashScreen>
     Future.delayed(const Duration(milliseconds: 900), () {
       if (mounted) _subtitleController.forward();
     });
+
+    // Tombol "Lewati" muncul setelah ±2 detik — user bisa langsung masuk
+    // ke aplikasi tanpa menunggu durasi minimum (10 detik).
+    _skipTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _skipVisible = true);
+    });
   }
 
   void _initEntranceAnimations() {
@@ -89,7 +108,11 @@ class _SplashScreenState extends State<SplashScreen>
       TweenSequenceItem(tween: Tween(begin: 1.08, end: 1.0), weight: 20),
     ]).animate(CurvedAnimation(
       parent: _logoController,
-      curve: Curves.easeOutBack,
+      // ⚠️ Curves.easeOutBack overshoots beyond 1.0, which triggers an
+      // assertion in TweenSequence (input must stay in [0,1]). Flutter 3.35's
+      // CurvedAnimation no longer clamps its output, so clamp it manually to
+      // keep the app from crashing in debug/test builds.
+      curve: _ClampedCurve(Curves.easeOutBack),
     ));
     _logoOpacityAnim = Tween(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -196,15 +219,48 @@ class _SplashScreenState extends State<SplashScreen>
   /// Called whenever the provider updates its `appInitProgress`.
   /// We check whether initialisation is truly done AND enough time
   /// has passed so the entrance animations feel complete.
+  ///
+  /// ⚠️ Semua jalur keluar lewat Timer (bukan setState langsung) karena
+  /// fungsi ini dipanggil dari build(). Memanggil _startExitAnimation()
+  /// secara sinkron di sini akan memicu "setState() called during build".
   void _checkExitCondition(double progress) {
-    if (_exitTriggered) return;
-    if (progress < 1.0) return;
+    if (_exitTriggered || progress < 1.0) return;
 
     final elapsed = DateTime.now().difference(_splashStartTime);
-    if (elapsed < _minSplashDuration) return;
+    final remaining = _minSplashDuration - elapsed;
 
-    _exitTriggered = true;
-    _startExitAnimation();
+    if (remaining > Duration.zero) {
+      // Init selesai sebelum durasi minimum → jadwalkan pengecekan ulang
+      // lewat Timer, karena provider sudah tidak mengirim notifikasi lagi
+      // (build() tidak akan dipanggil ulang → tanpa ini, splash stuck 100%).
+      _scheduleExit(remaining);
+    } else {
+      // Init sudah > durasi minimum → keluar segera, tapi tetap lewat
+      // Timer(Duration.zero) agar _startExitAnimation() (yang memanggil
+      // setState) TIDAK berjalan di tengah build().
+      _scheduleExit(Duration.zero);
+    }
+  }
+
+  /// Pasang timer untuk memicu animasi keluar splash.
+  /// Guard `mounted` + `_exitTriggered` mencegah trigger ganda.
+  void _scheduleExit(Duration delay) {
+    _exitTimer?.cancel();
+    _exitTimer = Timer(delay, () {
+      if (mounted && !_exitTriggered) {
+        _exitTriggered = true;
+        _startExitAnimation();
+      }
+    });
+  }
+
+  /// Tombol "Lewati" ditekan → langsung masuk ke MainScreen,
+  /// tanpa menunggu _minSplashDuration (10 detik).
+  /// Reuse _scheduleExit(Duration.zero): selain menangani guard
+  /// `_exitTriggered` + cancel timer, helper ini juga mengecek `mounted`.
+  void _handleSkip() {
+    if (_isExiting || _exitTriggered) return;
+    _scheduleExit(Duration.zero);
   }
 
   Future<void> _startExitAnimation() async {
@@ -262,6 +318,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _exitTimer?.cancel();
+    _skipTimer?.cancel();
     _logoController.dispose();
     _titleController.dispose();
     _subtitleController.dispose();
@@ -341,6 +399,12 @@ class _SplashScreenState extends State<SplashScreen>
             left: 0,
             right: 0,
             child: _buildVersionText(isDark),
+          ),
+          // Tombol "Lewati" — muncul setelah ±2 detik (lihat _skipTimer)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            right: 16,
+            child: _buildSkipButton(isDark),
           ),
         ],
       ),
@@ -629,6 +693,36 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
+  Widget _buildSkipButton(bool isDark) {
+    return IgnorePointer(
+      ignoring: !_skipVisible,
+      child: AnimatedOpacity(
+        opacity: _skipVisible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        child: TextButton.icon(
+          onPressed: _handleSkip,
+          icon: const Icon(Icons.skip_next_rounded, size: 18),
+          label: const Text('Lewati'),
+          style: TextButton.styleFrom(
+            foregroundColor: isDark ? Colors.white : const Color(0xFF5D4037),
+            backgroundColor: isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.white.withValues(alpha: 0.55),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : const Color(0xFFE8733A).withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildVersionText(bool isDark) {
     if (_isExiting) return const SizedBox.shrink();
 
@@ -663,6 +757,27 @@ class _FloatingEmoji {
     required this.drift,
     required this.delay,
   });
+}
+
+// ─── Clamped Curve Helper ───────────────────────────────────────────────────
+/// Wraps a [Curve] and clamps its output to the [0, 1] range.
+///
+/// `Curves.easeOutBack` overshoots beyond 1.0 (and can go below 0.0 in some
+/// variants), which breaks `TweenSequence.transform` — it asserts that its
+/// input stays within [0, 1]. Flutter 3.35's `CurvedAnimation` no longer
+/// clamps its output by default, so we clamp it here to keep the splash
+/// animation valid in debug/test builds without changing the visual curve
+/// shape for the in-range portion.
+class _ClampedCurve extends Curve {
+  const _ClampedCurve(this._curve);
+
+  final Curve _curve;
+
+  @override
+  double transformInternal(double t) {
+    final value = _curve.transformInternal(t);
+    return value.clamp(0.0, 1.0);
+  }
 }
 
 // ─── Background Pattern Painter ──────────────────────────────────────────────

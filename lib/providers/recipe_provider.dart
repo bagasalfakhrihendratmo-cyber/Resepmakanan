@@ -7,6 +7,7 @@ import '../models/recipe.dart';
 import '../models/user_rating.dart';
 import '../services/database_service.dart';
 import '../services/recipe_service.dart';
+import '../utils/indonesian_food_matcher.dart';
 
 class RecipeProvider extends ChangeNotifier {
   RecipeProvider({bool autoLoadFavorites = true}) {
@@ -24,27 +25,53 @@ class RecipeProvider extends ChangeNotifier {
   String get initStatus => _initStatus;
 
   /// Kicks off the full initialization chain and reports real progress.
+  ///
+  /// ⚠️ try/finally menjamin `_appInitProgress` SELALU mencapai 1.0 meskipun
+  /// loadFavorites/loadCollections melempar error. Tanpa ini, splash screen
+  /// akan stuck selamanya (timer exit hanya dipasang saat progress >= 1.0).
   Future<void> _initApp() async {
-    _setInitProgress(0.02, 'Menyiapkan aplikasi...');
+    try {
+      _setInitProgress(0.02, 'Menyiapkan aplikasi...');
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
-    // Small micro-task so the splash UI can render first
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      _setInitProgress(0.10, 'Menyambungkan database...');
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
 
-    _setInitProgress(0.10, 'Menyambungkan database...');
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Step 1 — Load favorites (the heaviest local op)
+      // ⚠️ Dibungkus try/catch sendiri: jika load gagal, jeda bertahap
+      // tetap berjalan (bar tidak melompat langsung ke 100%).
+      _setInitProgress(0.25, 'Memuat resep favorit...');
+      try {
+        await loadFavorites();
+      } catch (e) {
+        debugPrint('⚠️ Gagal memuat favorit (dilewati): $e');
+      }
 
-    // Step 1 — Load favorites (the heaviest local op)
-    _setInitProgress(0.25, 'Memuat resep favorit...');
-    await loadFavorites();
+      _setInitProgress(0.40, 'Menyiapkan data favorit...');
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
 
-    // Step 2 — Load collections
-    _setInitProgress(0.55, 'Memuat koleksi...');
-    await loadCollections();
+      // Step 2 — Load collections (sudah punya try/catch internal)
+      _setInitProgress(0.55, 'Memuat koleksi...');
+      await loadCollections();
 
-    // Done
-    _appInitProgress = 1.0;
-    _initStatus = 'Selesai! 🎉';
-    notifyListeners();
+      // Jeda bertahap menuju 100% — total delay 8,8 detik agar splash
+      // yang minimal 10 detik terisi mulus dan tidak diam lama di 100%.
+      _setInitProgress(0.70, 'Menyiapkan tampilan...');
+      await Future<void>.delayed(const Duration(milliseconds: 2000));
+
+      _setInitProgress(0.85, 'Mempercantik antarmuka...');
+      await Future<void>.delayed(const Duration(milliseconds: 2200));
+
+      _setInitProgress(0.95, 'Hampir selesai...');
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+    } catch (e) {
+      debugPrint('⚠️ Init error (dilewati): $e');
+    } finally {
+      // Done — selalu capai 1.0 agar splash pasti pindah ke MainScreen.
+      _appInitProgress = 1.0;
+      _initStatus = 'Selesai! 🎉';
+      notifyListeners();
+    }
   }
 
   void _setInitProgress(double value, String status) {
@@ -123,20 +150,44 @@ class RecipeProvider extends ChangeNotifier {
     notifyListeners();
 
     _activeFilter = filter;
+    final trimmed = query.trim();
+
+    if (trimmed.isEmpty) {
+      _searchResults = [];
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
 
     try {
-      final recipes = await _recipeService.searchRecipes(
-        query,
-        filter: filter,
-        cuisine: 'Indonesian',
-        diet: _dietFilter,
-        intolerance: _intoleranceFilter,
-        maxReadyTime: _maxReadyTime,
-      );
-      _searchResults = recipes;
-      // Hanya set errorMessage untuk error API sungguhan (catch block),
-      // bukan untuk hasil kosong - UI akan deteksi dari searchResults.isEmpty
-    } catch (_) {
+      // ─── Cek apakah query adalah makanan Indonesia ───
+      final isIndonesian = IndonesianFoodMatcher.isIndonesianFood(query);
+
+      if (isIndonesian) {
+        // ─── PRIORITAS: Database lokal untuk makanan Indonesia ───
+        _searchResults = await _recipeService.searchIndonesianRecipes(
+          query,
+          _databaseService,
+          filter: filter,
+        );
+        debugPrint('🍚 Pencarian Indonesia: ${_searchResults.length} hasil dari database lokal');
+      } else {
+        // ─── Query non-Indonesia: coba Spoonacular API ───
+        // RecipeService.searchRecipes sudah punya fallback ke demo data
+        // jika API gagal atau API Key tidak tersedia
+        final recipes = await _recipeService.searchRecipes(
+          query,
+          filter: filter,
+          cuisine: _cuisineFilter,
+          diet: _dietFilter,
+          intolerance: _intoleranceFilter,
+          maxReadyTime: _maxReadyTime,
+        );
+
+        _searchResults = recipes;
+      }
+    } catch (e) {
+      debugPrint('❌ Error saat mencari: $e');
       _searchResults = [];
       _errorMessage = 'Gagal terhubung ke server. Menggunakan data lokal...';
     } finally {
@@ -150,8 +201,16 @@ class RecipeProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final recipe = await _recipeService.getRecipeDetail(id);
-      _selectedRecipe = recipe;
+      // Kirim DatabaseService agar getRecipeDetail cek database lokal dulu.
+      // Ini mencegah bug: ID lokal (mis. 5) tertukar dengan resep Spoonacular.
+      final recipe = await _recipeService.getRecipeDetail(
+        id,
+        dbService: _databaseService,
+      );
+      // Jangan timpa seleksi dengan null (mis. ID lokal tidak ditemukan di web).
+      if (recipe != null) {
+        _selectedRecipe = recipe;
+      }
     } catch (_) {
       _errorMessage = 'Tidak dapat memuat detail resep.';
     } finally {
@@ -382,7 +441,12 @@ class RecipeProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _nutritionInfo = await _recipeService.getNutritionInfo(recipeId);
+      // Kirim DatabaseService: untuk resep lokal, nutrisi dilewati
+      // (ID lokal tidak ada di Spoonacular, jadi jangan request yang salah).
+      _nutritionInfo = await _recipeService.getNutritionInfo(
+        recipeId,
+        dbService: _databaseService,
+      );
     } catch (_) {
       // Silent fail
     } finally {

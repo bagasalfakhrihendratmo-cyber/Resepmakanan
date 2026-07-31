@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/ingredient.dart';
 import '../models/recipe.dart';
 import '../providers/recipe_provider.dart';
+import '../services/database_service.dart';
 import '../services/recipe_service.dart';
 import '../widgets/nutrition_card.dart';
 import '../widgets/rating_widget.dart';
@@ -30,6 +31,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   int _userRating = 0;
   bool _ratingLoaded = false;
   final RecipeService _recipeService = RecipeService();
+  final DatabaseService _databaseService = DatabaseService();
   Recipe? _fullRecipe;
 
   /// Get the best available recipe data (full detail > original)
@@ -48,14 +50,41 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     });
   }
 
-  /// Load full recipe detail from API (includes ingredients & instructions)
+  /// Load full recipe detail from API (includes ingredients & instructions).
+  /// ⚠️ PENTING: Jika data yang dipilih di halaman pencarian SUDAH LENGKAP
+  /// (bahan & langkah tersedia), gunakan OBJECT TERSEBUT langsung tanpa
+  /// request API ulang. Ini memastikan detail SELALU sinkron dengan pencarian.
   Future<void> _loadFullRecipe() async {
+    final selected = widget.recipe;
+
+    // Cek apakah data hasil pencarian sudah lengkap
+    final hasIngredients = selected.ingredients.isNotEmpty &&
+        !selected.ingredients.first.contains('belum tersedia');
+    final hasInstructions = selected.instructions.isNotEmpty &&
+        !selected.instructions.first.contains('belum tersedia');
+
+    if (hasIngredients && hasInstructions) {
+      // Data lengkap → gunakan resep yang dipilih, JANGAN fetch ulang.
+      if (mounted) {
+        setState(() {
+          _fullRecipe = selected;
+          _servings = selected.servings ?? 2;
+        });
+      }
+      debugPrint('✅ Detail dari data pencarian (tanpa request ulang): ${selected.title}');
+      return;
+    }
+
+    // Data tidak lengkap → ambil dari database lokal dulu, baru API.
     try {
-      final detail = await _recipeService.getRecipeDetail(widget.recipe.id);
+      final detail = await _recipeService.getRecipeDetail(
+        selected.id,
+        dbService: _databaseService,
+      );
       if (mounted && detail != null) {
         setState(() {
           _fullRecipe = detail;
-          _servings = detail.servings ?? widget.recipe.servings ?? 2;
+          _servings = detail.servings ?? selected.servings ?? 2;
         });
       }
     } catch (_) {
